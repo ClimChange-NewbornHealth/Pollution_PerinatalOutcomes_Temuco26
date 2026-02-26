@@ -47,3 +47,6 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Project files
+01_Input/Data_full_sample_exposure.RData

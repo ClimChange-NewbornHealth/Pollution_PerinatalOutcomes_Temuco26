@@ -4,6 +4,7 @@
 source("02_Code/0.1 Settings.R")
 source("02_Code/0.2 Packages.R")
 source("02_Code/0.3 Functions.R")
+source("02_Code/0.4 Functions_models.R")
 
 ## 1 Load data ----
 
@@ -15,11 +16,12 @@ glimpse(data)
 # Filtramos datos con valores válidos en variables dependientes
 data_model <- data |>
   mutate(mes_nac = lubridate::month(fecha_nac)) |> 
-  select("idbase", starts_with("birth_"), "lbw", "tlbw", "sga", 
+  select("idbase", "edad_gest", starts_with("birth_"), "lbw", "tlbw", "sga", 
          "edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac",
          starts_with("pct1_"), starts_with("t1_"), starts_with("t2_"),
          starts_with("t3_"), starts_with("w20_"), starts_with("tot_")) |> 
-  filter(!is.na(lbw | tlbw | sga))
+  filter(!is.na(lbw | tlbw | sga)) |> 
+  filter(edad_gest >= 28)
 
 glimpse(data_model)
 summary(data_model)
@@ -132,170 +134,12 @@ writexl::write_xlsx(
 
 ## 4. Functions models (logit) ----
 
-fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo, 
-                           model_type, data, conf.level = 0.95, adjustment = "Adjusted") {
-  
-  # Extraemos lista de predictores individuales
-  if (model_type == "single") {
-    predictors_list <- predictor
-  } else {
-    predictors_list <- trimws(stringr::str_split(predictor, " \\+ ")[[1]])
-  }
-  
-  # Verificamos que todos los predictores existan en los datos
-  missing_predictors <- predictors_list[!predictors_list %in% names(data)]
-  if (length(missing_predictors) > 0) {
-    return(data.frame(
-      term = predictor,
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      dependent_var = dependent,
-      predictor = predictor,
-      tiempo = tiempo,
-      contaminante = contaminante,
-      tipo = tipo,
-      model_type = model_type,
-      adjustment = adjustment,
-      n = 0
-    ))
-  }
-  
-  # Filtramos datos con valores válidos en variable dependiente y todos los predictores
-  data_subset <- data |>
-    dplyr::filter(!is.na(.data[[dependent]]))
-  
-  # Verificamos valores válidos en todos los predictores
-  for (pred in predictors_list) {
-    data_subset <- data_subset |>
-      dplyr::filter(!is.na(.data[[pred]]))
-  }
-  
-  # Si no hay datos suficientes, retornamos NA
-  if (nrow(data_subset) < 10) {
-    return(data.frame(
-      term = predictor,
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      dependent_var = dependent,
-      predictor = predictor,
-      tiempo = tiempo,
-      contaminante = contaminante,
-      tipo = tipo,
-      model_type = model_type,
-      adjustment = adjustment,
-      n = nrow(data_subset)
-    ))
-  }
-  
-  # Construimos fórmula según ajuste
-  if (identical(adjustment, "Adjusted")) {
-    # Verificamos que las variables de control existan
-    available_controls <- control_vars[control_vars %in% names(data_subset)]
-    
-    rhs <- if (length(available_controls) > 0) {
-      paste(
-        paste(predictors_list, collapse = " + "),
-        paste("+", paste(available_controls, collapse = " + "))
-      )
-    } else {
-      paste(predictors_list, collapse = " + ")
-    }
-  } else {
-    rhs <- paste(predictors_list, collapse = " + ")
-  }
-  
-  # Construimos fórmula
-  fml <- as.formula(paste0(dependent, " ~ ", rhs))
-  
-  # Estimamos modelo
-  model_fit <- tryCatch({
-    glm(fml, data = data_subset, family = binomial(link = "logit"))
-  }, error = function(e) {
-    return(NULL)
-  })
-  
-  if (is.null(model_fit)) {
-    return(data.frame(
-      term = predictor,
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      dependent_var = dependent,
-      predictor = predictor,
-      tiempo = tiempo,
-      contaminante = contaminante,
-      tipo = tipo,
-      model_type = model_type,
-      adjustment = adjustment,
-      n = nrow(data_subset)
-    ))
-  }
-  
-  # Extraemos resultados
-  tbl <- broom::tidy(model_fit, conf.int = FALSE, exponentiate = FALSE)
-  z <- qnorm(1 - (1 - conf.level) / 2)
-  
-  # Filtramos solo los términos de exposición (predictores)
-  tbl_exposure <- tbl[tbl$term %in% predictors_list, ]
-  
-  if (nrow(tbl_exposure) > 0) {
-    tbl_exposure <- tbl_exposure |>
-      dplyr::mutate(
-        or = exp(estimate),
-        conf.low = exp(estimate - z * std.error),
-        conf.high = exp(estimate + z * std.error),
-        estimate = or,
-        dependent_var = dependent,
-        predictor = predictor,
-        tiempo = tiempo,
-        contaminante = contaminante,
-        tipo = tipo,
-        model_type = model_type,
-        adjustment = adjustment,
-        n = nrow(data_subset)
-      ) |>
-      dplyr::select(term, estimate, std.error, statistic, p.value, 
-                    conf.low, conf.high, dependent_var, predictor, 
-                    tiempo, contaminante, tipo, model_type, adjustment, n)
-  } else {
-    # Si no encontramos términos de exposición, creamos fila con NAs
-    tbl_exposure <- data.frame(
-      term = predictors_list[1],
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      dependent_var = dependent,
-      predictor = predictor,
-      tiempo = tiempo,
-      contaminante = contaminante,
-      tipo = tipo,
-      model_type = model_type,
-      adjustment = adjustment,
-      n = nrow(data_subset)
-    )
-  }
-  
-  rm(model_fit); gc()
-  
-  return(tbl_exposure)
-}
+fit_logit_model # Logit models 
+fit_cox_model # Cox models
 
 ## 5. Parallel computation modelling ----
 
+### Logit models ------
 plan(multisession, workers = parallel::detectCores() - 4)
 options(future.globals.maxSize = 1.5 * 1024^3)
 
@@ -325,6 +169,10 @@ results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
 toc() # 22 sec
 
 plan(sequential)
+
+### Cox models ------
+
+
 
 ## 6. Join and save the results ----
 

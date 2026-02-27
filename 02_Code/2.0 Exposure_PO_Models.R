@@ -1,45 +1,49 @@
-# 5.0 Exposure models -----
+# 2.0 Exposure models -----
 
 ## Settings ----
-source("Code/0.1 Settings.R")
-source("Code/0.2 Packages.R")
-source("Code/0.3 Functions.R")
+source("02_Code/0.1 Settings.R")
+source("02_Code/0.2 Packages.R")
+source("02_Code/0.3 Functions.R")
 
-## 1. Cargamos los datos ----
+## 1 Load data ----
 
-data_full_wide <- rio::import("Output/Data_malf_exposure_wide.RData")
-#data_full_long <- rio::import("Output/Data_malf_exposure_long.RData")
-glimpse(data_full_wide)
+data <- rio::import("01_Input/Data_full_sample_exposure.RData")
+glimpse(data)
 
-## 2. Preparamos los datos para modelado ----
+## 2 Prepare data for the models ----
 
 # Filtramos datos con valores válidos en variables dependientes
-data_model <- data_full_wide |>
-  filter(!is.na(malf))
+data_model <- data |>
+  mutate(mes_nac = lubridate::month(fecha_nac)) |> 
+  select("idbase", starts_with("birth_"), "lbw", "tlbw", "sga", 
+         "edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac",
+         starts_with("pct1_"), starts_with("t1_"), starts_with("t2_"),
+         starts_with("t3_"), starts_with("w20_"), starts_with("tot_")) |> 
+  filter(!is.na(lbw | tlbw | sga))
 
-## 3. Definimos variables y creamos grilla de modelos ----
+glimpse(data_model)
+summary(data_model)
 
-# Variables dependientes
-dependent_vars <- c("malf", colnames(data_full_wide)[str_detect(colnames(data_full_wide), pattern = "malf_.*_bin")])
+## 3. Define and create a grid models ----
+
+# Dependente vars
+dependent_vars <- c(colnames(data_model)[str_detect(colnames(data_model), pattern = "birth_.*")], "lbw", "tlbw", "sga")
 dependent_vars
 
-# Variables de control para modelos ajustados
-control_vars <- c("edad_madre", "sexo_rn", "a_nac", "estacion")
+# Covariantes
+control_vars <- c("edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac")
 
-test <- data_model |>
-  select(all_of(control_vars))
-
-# Períodos de tiempo de interés
+# Time independent variables
 time_periods <- c("pct1", "t1", "t2", "t3", "w20", "tot")
 
-# Contaminantes y tipos
+# Contaminants 
 contaminants <- c("PM25", "Levo", "K")
-types <- c("cs", "sp")
+types <- c("cs", "sp") # Spatial models 
 
-# Tipos de modelos
+# Model types 
 model_types <- c("single", "pct1_t1_t2_t3", "t1_t2_t3")
 
-# Creamos grilla de modelos individuales (single)
+# Grid to single models 
 combinations_single <- expand.grid(
   dependent = dependent_vars,
   tiempo = time_periods,
@@ -50,13 +54,13 @@ combinations_single <- expand.grid(
   stringsAsFactors = FALSE
 )
 
-# Creamos nombre de predictor para modelos single
+# Predictor trimester 
 combinations_single <- combinations_single |>
   mutate(
     predictor = paste0(tiempo, "_", contaminante, "_", tipo)
   )
 
-# Creamos grilla de modelos con pct1 + t1 + t2 + t3
+# Grid with pct1 + t1 + t2 + t3 (Unadjusted and adjusted models)
 combinations_pct1_t1_t2_t3 <- expand.grid(
   dependent = dependent_vars,
   contaminante = contaminants,
@@ -73,7 +77,7 @@ combinations_pct1_t1_t2_t3 <- combinations_pct1_t1_t2_t3 |>
     tiempo = "pct1_t1_t2_t3"
   )
 
-# Creamos grilla de modelos con t1 + t2 + t3
+# Grid with t1 + t2 + t3
 combinations_t1_t2_t3 <- expand.grid(
   dependent = dependent_vars,
   contaminante = contaminants,
@@ -90,22 +94,22 @@ combinations_t1_t2_t3 <- combinations_t1_t2_t3 |>
     tiempo = "t1_t2_t3"
   )
 
-# Combinamos todas las grillas
+# All grids in an object 
 combinations <- bind_rows(
   combinations_single,
   combinations_pct1_t1_t2_t3,
   combinations_t1_t2_t3
 )
 
-# Verificamos que los predictores existan en los datos
+# Predictor in the data
 available_predictors <- names(data_model)[grepl("(_PM25_|_Levo_|_K_)", names(data_model))]
 
-# Para modelos single, verificamos que el predictor exista
+# Predictor in the data for the single models
 combinations_single_valid <- combinations |>
   filter(model_type == "single") |>
   filter(predictor %in% available_predictors)
 
-# Para modelos múltiples, verificamos que todos los predictores existan
+# Predictor in the data for the multiple models
 combinations_multi <- combinations |>
   filter(model_type != "single") |>
   rowwise() |>
@@ -117,16 +121,16 @@ combinations_multi <- combinations |>
   filter(all_exist) |>
   select(-predictors_list, -all_exist)
 
-# Combinamos resultados válidos
+# All models 
 combinations <- bind_rows(combinations_single_valid, combinations_multi)
 
-# Guardamos la grilla de modelos
+# Save grid with all models 
 writexl::write_xlsx(
   combinations, 
-  path = "Output/Models/List_models_exposure_malf.xlsx"
+  path = "03_Output/Models/List_models_exposure_PO.xlsx"
 )
 
-## 4. Función para estimar modelos logísticos ----
+## 4. Functions models (logit) ----
 
 fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo, 
                            model_type, data, conf.level = 0.95, adjustment = "Adjusted") {
@@ -290,7 +294,7 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
   return(tbl_exposure)
 }
 
-## 5. Estimamos todos los modelos de forma paralela ----
+## 5. Parallel computation modelling ----
 
 plan(multisession, workers = parallel::detectCores() - 4)
 options(future.globals.maxSize = 1.5 * 1024^3)
@@ -322,7 +326,7 @@ toc() # 22 sec
 
 plan(sequential)
 
-## 6. Consolidamos y guardamos resultados ----
+## 6. Join and save the results ----
 
 # Combinamos todos los resultados
 results_logit <- bind_rows(results_list) |> 
@@ -335,6 +339,8 @@ writexl::write_xlsx(
   results_logit, 
   path = "Output/Models/Exposure_models_malf.xlsx"
 )
+
+## 7. Test results models  ----
 
 # Test de prueba de algunos modelos 
 m1 <- glm(

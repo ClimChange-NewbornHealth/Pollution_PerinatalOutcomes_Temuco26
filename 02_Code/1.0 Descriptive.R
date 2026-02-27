@@ -1,4 +1,4 @@
-# 4.1 Data new analysis -----
+# 1.0 Descriptives analysis -----
 
 ## Settings ----
 source("02_Code/0.1 Settings.R")
@@ -7,4 +7,4 @@ source("02_Code/0.3 Functions.R")
 
 ## 1. Load perinatal outcomes data ----
 data <- rio::import("01_Input/Data_full_sample_exposure.RData")
-
+glimpse(data)

@@ -17,11 +17,14 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
     return(data.frame(
       term = predictor,
       estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      log_or = NA_real_,
+      log_or_conf.low = NA_real_,
+      log_or_conf.high = NA_real_,
       std.error = NA_real_,
       statistic = NA_real_,
       p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
       dependent_var = dependent,
       predictor = predictor,
       tiempo = tiempo,
@@ -32,7 +35,7 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
       n = 0
     ))
   }
-  
+
   # Filtramos datos con valores válidos en variable dependiente y todos los predictores
   data_subset <- data |>
     dplyr::filter(!is.na(.data[[dependent]]))
@@ -48,11 +51,14 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
     return(data.frame(
       term = predictor,
       estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      log_or = NA_real_,
+      log_or_conf.low = NA_real_,
+      log_or_conf.high = NA_real_,
       std.error = NA_real_,
       statistic = NA_real_,
       p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
       dependent_var = dependent,
       predictor = predictor,
       tiempo = tiempo,
@@ -63,7 +69,7 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
       n = nrow(data_subset)
     ))
   }
-  
+
   # Construimos fórmula según ajuste
   if (identical(adjustment, "Adjusted")) {
     # Verificamos que las variables de control existan
@@ -95,11 +101,14 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
     return(data.frame(
       term = predictor,
       estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      log_or = NA_real_,
+      log_or_conf.low = NA_real_,
+      log_or_conf.high = NA_real_,
       std.error = NA_real_,
       statistic = NA_real_,
       p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
       dependent_var = dependent,
       predictor = predictor,
       tiempo = tiempo,
@@ -110,7 +119,7 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
       n = nrow(data_subset)
     ))
   }
-  
+
   # Extraemos resultados
   tbl <- broom::tidy(model_fit, conf.int = FALSE, exponentiate = FALSE)
   z <- qnorm(1 - (1 - conf.level) / 2)
@@ -122,9 +131,14 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
     tbl_exposure <- tbl_exposure |>
       dplyr::mutate(
         or = exp(estimate),
-        conf.low = exp(estimate - z * std.error),
-        conf.high = exp(estimate + z * std.error),
+        or_conf.low = exp(estimate - z * std.error),
+        or_conf.high = exp(estimate + z * std.error),
+        log_or = estimate,
+        log_or_conf.low = estimate - z * std.error,
+        log_or_conf.high = estimate + z * std.error,
         estimate = or,
+        conf.low = or_conf.low,
+        conf.high = or_conf.high,
         dependent_var = dependent,
         predictor = predictor,
         tiempo = tiempo,
@@ -134,19 +148,21 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
         adjustment = adjustment,
         n = nrow(data_subset)
       ) |>
-      dplyr::select(term, estimate, std.error, statistic, p.value, 
-                    conf.low, conf.high, dependent_var, predictor, 
+      dplyr::select(term, estimate, conf.low, conf.high, log_or, log_or_conf.low, log_or_conf.high,
+                    std.error, statistic, p.value, dependent_var, predictor,
                     tiempo, contaminante, tipo, model_type, adjustment, n)
   } else {
-    # Si no encontramos términos de exposición, creamos fila con NAs
     tbl_exposure <- data.frame(
       term = predictors_list[1],
       estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      log_or = NA_real_,
+      log_or_conf.low = NA_real_,
+      log_or_conf.high = NA_real_,
       std.error = NA_real_,
       statistic = NA_real_,
       p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
       dependent_var = dependent,
       predictor = predictor,
       tiempo = tiempo,
@@ -182,11 +198,14 @@ fit_cox_model <- function(dependent, predictor, tiempo, contaminante, tipo,
     return(data.frame(
       term = predictor,
       estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      log_hr = NA_real_,
+      log_hr_conf.low = NA_real_,
+      log_hr_conf.high = NA_real_,
       std.error = NA_real_,
       statistic = NA_real_,
       p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
       dependent_var = dependent,
       predictor = predictor,
       tiempo = tiempo,
@@ -212,11 +231,14 @@ fit_cox_model <- function(dependent, predictor, tiempo, contaminante, tipo,
     return(data.frame(
       term = predictor,
       estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      log_hr = NA_real_,
+      log_hr_conf.low = NA_real_,
+      log_hr_conf.high = NA_real_,
       std.error = NA_real_,
       statistic = NA_real_,
       p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
       dependent_var = dependent,
       predictor = predictor,
       tiempo = tiempo,
@@ -258,11 +280,14 @@ fit_cox_model <- function(dependent, predictor, tiempo, contaminante, tipo,
     return(data.frame(
       term = predictor,
       estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      log_hr = NA_real_,
+      log_hr_conf.low = NA_real_,
+      log_hr_conf.high = NA_real_,
       std.error = NA_real_,
       statistic = NA_real_,
       p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
       dependent_var = dependent,
       predictor = predictor,
       tiempo = tiempo,
@@ -283,6 +308,12 @@ fit_cox_model <- function(dependent, predictor, tiempo, contaminante, tipo,
   if (nrow(tbl_exposure) > 0) {
     tbl_exposure <- tbl_exposure |>
       dplyr::mutate(
+        hr = estimate,
+        hr_conf.low = conf.low,
+        hr_conf.high = conf.high,
+        log_hr = log(estimate),
+        log_hr_conf.low = log(conf.low),
+        log_hr_conf.high = log(conf.high),
         dependent_var = dependent,
         predictor = predictor,
         tiempo = tiempo,
@@ -292,18 +323,21 @@ fit_cox_model <- function(dependent, predictor, tiempo, contaminante, tipo,
         adjustment = adjustment,
         n = nrow(data_subset)
       ) |>
-      dplyr::select(term, estimate, std.error, statistic, p.value,
-                    conf.low, conf.high, dependent_var, predictor,
+      dplyr::select(term, estimate, conf.low, conf.high, log_hr, log_hr_conf.low, log_hr_conf.high,
+                    std.error, statistic, p.value, dependent_var, predictor,
                     tiempo, contaminante, tipo, model_type, adjustment, n)
   } else {
     tbl_exposure <- data.frame(
       term = predictors_list[1],
       estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      log_hr = NA_real_,
+      log_hr_conf.low = NA_real_,
+      log_hr_conf.high = NA_real_,
       std.error = NA_real_,
       statistic = NA_real_,
       p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
       dependent_var = dependent,
       predictor = predictor,
       tiempo = tiempo,

@@ -205,12 +205,9 @@ plan(sequential)
 
 ## 6. Join and save the results ----
 
-# Extract results and add predictor info
-results_logit <- bind_rows(results_list_logit) |> 
-  mutate(term = predictor)
-
-results_cox <- bind_rows(results_list_cox) |> 
-  mutate(term = predictor)
+# Extract results (term preserved for multi-predictor models)
+results_logit <- bind_rows(results_list_logit)
+results_cox <- bind_rows(results_list_cox)
 
 
 # Save results 

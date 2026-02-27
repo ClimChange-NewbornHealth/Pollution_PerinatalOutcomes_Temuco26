@@ -20,6 +20,7 @@ data_model <- data |>
          "edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac",
          starts_with("pct1_"), starts_with("t1_"), starts_with("t2_"),
          starts_with("t3_"), starts_with("w20_"), starts_with("tot_")) |> 
+  select(-"birth_extremely_preterm", -"birth_term", -"birth_posterm") |> 
   filter(!is.na(lbw | tlbw | sga)) |> 
   filter(edad_gest >= 28)
 
@@ -33,7 +34,7 @@ dependent_vars <- c(colnames(data_model)[str_detect(colnames(data_model), patter
 dependent_vars
 
 # Covariantes
-control_vars <- c("edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac")
+control_vars <- c("edad_madre", "sexo_rn", "a_nac", "mes_nac", "comuna")
 
 # Time independent variables
 time_periods <- c("pct1", "t1", "t2", "t3", "w20", "tot")
@@ -133,7 +134,7 @@ writexl::write_xlsx(
 )
 
 ## 4. Functions models (logit) ----
-
+# Script function 0.4 
 fit_logit_model # Logit models 
 fit_cox_model # Cox models
 
@@ -144,7 +145,7 @@ plan(multisession, workers = parallel::detectCores() - 4)
 options(future.globals.maxSize = 1.5 * 1024^3)
 
 tic()
-results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
+results_list_logit <- future_lapply(seq_len(nrow(combinations)), function(i) {
   message("Iteración ", i, "/", nrow(combinations), " en PID ", Sys.getpid())
   
   dep <- combinations$dependent[i]
@@ -166,60 +167,84 @@ results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
     adjustment = adj
   )
 }, future.seed = TRUE)
-toc() # 22 sec
+toc() # 7 sec
 
 plan(sequential)
 
 ### Cox models ------
 
+plan(multisession, workers = parallel::detectCores() - 4)
+options(future.globals.maxSize = 1.5 * 1024^3)
 
+tic()
+results_list_cox <- future_lapply(seq_len(nrow(combinations)), function(i) {
+  message("Iteración ", i, "/", nrow(combinations), " en PID ", Sys.getpid())
+  
+  dep <- combinations$dependent[i]
+  tiempo <- combinations$tiempo[i]
+  contaminante <- combinations$contaminante[i]
+  tipo <- combinations$tipo[i]
+  pred <- combinations$predictor[i]
+  model_type <- combinations$model_type[i]
+  adj <- combinations$adjustment[i]
+  
+  fit_cox_model(
+    dependent = dep,
+    predictor = pred,
+    tiempo = tiempo,
+    contaminante = contaminante,
+    tipo = tipo,
+    model_type = model_type,
+    data = data_model,
+    adjustment = adj
+  )
+}, future.seed = TRUE)
+toc() # 11 sec
+
+plan(sequential)
 
 ## 6. Join and save the results ----
 
-# Combinamos todos los resultados
-results_logit <- bind_rows(results_list) |> 
+# Extract results and add predictor info
+results_logit <- bind_rows(results_list_logit) |> 
   mutate(term = predictor)
 
-# Guardamos resultados
-save(results_list, file = "Output/Models/Exposure_models_malf.RData")
+results_cox <- bind_rows(results_list_cox) |> 
+  mutate(term = predictor)
+
+
+# Save results 
+save(results_list_logit, file = "03_Output/Models/Exposure_models_PO_logit.RData")
+save(results_list_cox, file = "03_Output/Models/Exposure_models_PO_cox.RData")
 
 writexl::write_xlsx(
-  results_logit, 
-  path = "Output/Models/Exposure_models_malf.xlsx"
+  list(logit_models = results_logit, cox_models = results_cox),
+  path = "03_Output/Models/Exposure_models_PO_logit_cox.xlsx"
 )
 
 ## 7. Test results models  ----
 
-# Test de prueba de algunos modelos 
+# Test random models check resuls functions 
 m1 <- glm(
-  malf ~ pct1_PM25_cs + t1_PM25_cs + t2_PM25_cs + t3_PM25_cs +
-  #edad_madre + sexo_rn + a_nac + estacion, 
-  family = binomial(link = logit), data = data_full_wide)
+  birth_preterm  ~ t1_PM25_cs + t2_PM25_cs + t3_PM25_cs +
+  edad_madre + sexo_rn + a_nac + mes_nac + comuna, 
+  family = binomial(link = logit), data = data_model)
 
 summary(m1)
 exp(m1$coefficients[-1])
 exp(confint.default(m1)) 
+AIC(m1)
+BIC(m1)
+broom::tidy(m1, conf.int = TRUE, exponentiate = TRUE)
 
-
-m2 <- glm(
-  malf ~ t1_PM25_cs + t2_PM25_cs + t3_PM25_cs +
-  edad_madre + sexo_rn + a_nac + estacion, 
-  family = binomial(link = logit), data = data_full_wide)
+m2 <- survival::coxph(Surv(edad_gest, birth_preterm)  ~ 
+  t1_PM25_cs + t2_PM25_cs + t3_PM25_cs +
+  edad_madre + sexo_rn + a_nac + mes_nac + comuna, 
+  data = data_model)
 
 summary(m2)
 exp(m2$coefficients[-1])
 exp(confint.default(m2)) 
-
-
-m3 <- glm(
-  malf ~ tot_PM25_cs +
-  edad_madre + sexo_rn + a_nac + estacion, 
-  family = binomial(link = logit), data = data_full_wide)
-
-summary(m3)
-exp(m3$coefficients[-1])
-exp(confint.default(m3)) 
-
-m1 <- broom::tidy(m1, conf.int = TRUE, exponentiate = TRUE)
-m2 <- broom::tidy(m2, conf.int = TRUE, exponentiate = TRUE)
-m3 <- broom::tidy(m3, conf.int = TRUE, exponentiate = TRUE)
+AIC(m2)
+BIC(m2)
+broom::tidy(m2, conf.int = TRUE, exponentiate = TRUE)

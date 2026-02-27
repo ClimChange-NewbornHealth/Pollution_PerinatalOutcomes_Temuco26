@@ -8,7 +8,7 @@
 
 ## :moneybag: Funding
 
-**Fondecyt Nº 11240322**: Climate change and urban health: how air pollution, temperature, and city structure relate to preterm birth
+**Fondecyt Nº 11240322**: Climate change and urban health: how air pollution, temperature, and city structure relate to preterm birth.
 
 ## :busts_in_silhouette: Research Team
 
@@ -16,7 +16,7 @@
 
 :mailbox_with_mail: **José Daniel Conejeros** (<jdconejeros@uc.cl>) - **Research Assistant / Repository Manager**
 
-**Research Collaborators**: Álvaro González-Reyes, Pamela Smith, Paola Rubilar, & Pablo Sarricolea
+**Research Collaborators**: 
 
 ## :pushpin: Publication
 

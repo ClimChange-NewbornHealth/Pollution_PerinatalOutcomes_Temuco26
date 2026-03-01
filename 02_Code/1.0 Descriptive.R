@@ -44,8 +44,18 @@ source("02_Code/0.3 Functions.R")
 #  mutate(sga = if_else(peso_rn < p10, 1, 0)) |> 
 #  select(-p10) 
 
-
-
 ## 1. Load perinatal outcomes data ----
 data <- rio::import("01_Input/Data_full_sample_exposure.RData")
+glimpse(data)
+
+data <- data |>
+  mutate(mes_nac = lubridate::month(fecha_nac)) |> 
+  select("idbase", "edad_gest", starts_with("birth_"), "lbw", "tlbw", "sga", 
+         "edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac",
+         starts_with("pct1_"), starts_with("t1_"), starts_with("t2_"),
+         starts_with("t3_"), starts_with("w20_"), starts_with("tot_")) |> 
+  select(-"birth_extremely_preterm", -"birth_term", -"birth_posterm") |> 
+  filter(!is.na(lbw | tlbw | sga)) |> 
+  filter(edad_gest >= 28)
+
 glimpse(data)

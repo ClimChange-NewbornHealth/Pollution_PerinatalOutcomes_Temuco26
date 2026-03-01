@@ -80,7 +80,7 @@ outcomes_labels <- c(
   "birth_moderately_preterm" = "Moderately preterm birth",
   "birth_late_preterm"       = "Late preterm birth",
   "lbw"                      = "Low birth weight (LBW)",
-  "tlbw"                     = "Very low birth weight (tLBW)",
+  "tlbw"                     = "Low birth weight of term (tLBW)",
   "sga"                      = "Small for gestational age (SGA)"
 )
 

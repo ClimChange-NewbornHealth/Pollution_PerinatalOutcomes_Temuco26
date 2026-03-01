@@ -50,3 +50,4 @@ rsconnect/
 
 # Project files
 01_Input/Data_full_sample_exposure.RData
+03_Output/Models/Plots_compiled_figures.RData

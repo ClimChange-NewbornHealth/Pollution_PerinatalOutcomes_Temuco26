@@ -54,7 +54,9 @@ We conducted a population-based retrospective cohort study using:
   - Low birth weight (<2500 g)
   - Very low birth weight (<1500 g)
   - Small for gestational age (SGA)
-- **Statistical Analysis**: Logistic regression (OR) and Cox proportional hazards models (HR) with gestational age as the time scale
+- **Statistical Analysis**:
+  - **Exposure models**: Logistic regression (OR) and Cox proportional hazards models (HR) with gestational age as the time scale
+  - **Distributed Lag Models (DLM)**: Per-week models (weeks 1–39) with current-week exposure and weighted lagged exposure (weights = 1 / temporal distance); logit and Cox, adjusted for covariates
 - **Covariates**: Maternal age, infant sex, birth year, birth month, municipality
 
 ### Key Findings
@@ -78,26 +80,42 @@ We conducted a population-based retrospective cohort study using:
 
 ### Exposure Models
 
-- `2.0 Exposure_PO_Models.R` - Logistic and Cox models for perinatal outcomes by exposure window
-- `3.0 Exposure_PO_Plots_Models.R` - Forest plots of OR and HR (log scale) by pollutant and outcome
+- `2.0 Exposure_PO_Models.R` - Logistic and Cox models for perinatal outcomes by exposure window (tot, w20, trimesters)
+- `3.0 Exposure_PO_Tables_Models.R` - Excel tables of OR and HR by pollutant and outcome
+- `4.0 Exposure_PO_Plots_Models.R` - Forest plots of OR and HR (log and ratio scale) by pollutant and outcome
 
 ### Distributed Lag Models (DLM)
 
-- `4.0 DLM_PO_models.R` - *Pending*. Distributed lag models for perinatal outcomes (to be estimated).
+- `5.0 DLM_PO_estimation.R` - DLM estimation: logit and Cox models per gestational week (1–39) with exposure + lagged exposure; uses `fit_logit_model` and `fit_cox_model` from `0.4 Functions_models.R`; saves results to `03_Output/DLM/DLM_PO_results.RData`
+- `5.1 DLM_PO_tables_plots.R` - DLM tables (Excel, one sheet per outcome–exposure) and figures (panels by contaminant–type, each subplot = one outcome)
 
 ---
 
 ## :chart_with_upwards_trend: Principal Findings
 
-### Figure. Association Between Air Pollution and Perinatal Outcomes
+### Exposure Models: Association Between Air Pollution and Perinatal Outcomes
 
 **Logistic models (OR)** and **Cox models (HR)** by pollutant (PM₂.₅, Levoglucosan, K) and spatial type (cs, sp).
 
-Outputs are saved in:
-- `03_Output/Models/Plots_logit/` - OR panels (log scale)
-- `03_Output/Models/Plots_cox/` - HR panels (log scale)
+Outputs:
+- `03_Output/Models/Exposure_models_PO_logit_cox.xlsx` - Raw OR and HR results
+- `03_Output/Models/Tables/Tab_Exposure_PO.xlsx` - Formatted tables (OR and HR sheets)
+- `03_Output/Models/Plots_logit/` - OR panels (log and ratio scale)
+- `03_Output/Models/Plots_cox/` - HR panels (log and ratio scale)
 
-*Note*: Each figure shows seven perinatal outcomes (preterm birth, very preterm, moderately preterm, late preterm, low birth weight, very low birth weight, small for gestational age) across exposure windows (Week 20, Overall, Trimesters 1–3). Unadjusted and adjusted models are displayed.
+*Note*: Each figure shows seven perinatal outcomes across exposure windows (Week 20, Overall, Trimesters 1–3). Unadjusted and adjusted models are displayed.
+
+### Distributed Lag Models (DLM): Week-Specific Effects
+
+**DLM** estimates the association between exposure at each gestational week (1–39) and perinatal outcomes, controlling for lagged exposure (weighted sum of past weeks).
+
+Outputs:
+- `03_Output/DLM/DLM_PO_results.RData` - Estimated coefficients and CIs (logit and Cox)
+- `03_Output/DLM/Tab_DLM_PO.xlsx` - Excel tables (one sheet per outcome–exposure; Week, OR, HR with 95% CI)
+- `03_Output/DLM/Plots_logit/` - OR by week (log and ratio scale)
+- `03_Output/DLM/Plots_cox/` - HR by week (log and ratio scale)
+
+*Note*: Each figure is a panel (2×4) where each subplot corresponds to one perinatal outcome, with gestational week on the x-axis.
 
 ---
 
@@ -152,20 +170,25 @@ The analysis pipeline follows this sequence:
    source("02_Code/2.0 Exposure_PO_Models.R")
    ```
 
-4. **Visualization**:
+4. **Exposure Tables and Plots**:
    ```r
-   source("02_Code/3.0 Exposure_PO_Plots_Models.R")
+   source("02_Code/3.0 Exposure_PO_Tables_Models.R")
+   source("02_Code/4.0 Exposure_PO_Plots_Models.R")
    ```
 
-5. **Distributed Lag Models** (pending):
+5. **Distributed Lag Models (DLM)**:
    ```r
-   # source("02_Code/4.0 DLM_PO_models.R")  # To be run when DLM analysis is complete
+   source("02_Code/5.0 DLM_PO_estimation.R")   # Estimation (~8–10 min)
+   source("02_Code/5.1 DLM_PO_tables_plots.R") # Tables and figures
    ```
 
 ### Notes on Computation Time
 
 - **Exposure models** (`2.0 Exposure_PO_Models.R`): ~20–30 seconds (parallelized)
-- **Plots** (`3.0 Exposure_PO_Plots_Models.R`): ~10 seconds
+- **Tables** (`3.0 Exposure_PO_Tables_Models.R`): ~5 seconds
+- **Plots** (`4.0 Exposure_PO_Plots_Models.R`): ~10 seconds
+- **DLM estimation** (`5.0 DLM_PO_estimation.R`): ~8–10 minutes (39 weeks × 6 pollutant–type × 7 outcomes × 2 models)
+- **DLM tables and plots** (`5.1 DLM_PO_tables_plots.R`): ~1–2 minutes
 
 ---
 
@@ -207,12 +230,12 @@ See `01_Input/Data_dictionary_PO_pollution.md` for a detailed data dictionary. S
 - **Week 20**: Average exposure during gestational week 20
 - **Overall**: Whole-pregnancy average exposure
 - **Trimesters 1–3**: Trimester-specific averages; mutually adjusted models include all three trimesters simultaneously
+- **DLM (weeks 1–39)**: Per-week exposure; each model includes current-week exposure and lagged exposure (weighted sum of past weeks, weights = 1 / temporal distance)
 
 ### Model Outputs
 
-- **OR** and **log(OR)** with 95% CI (logistic models)
-- **HR** and **log(HR)** with 95% CI (Cox models)
-- Results saved to `03_Output/Models/Exposure_models_PO_logit_cox.xlsx`
+- **Exposure models**: OR and log(OR) with 95% CI (logistic); HR and log(HR) with 95% CI (Cox). Results saved to `03_Output/Models/Exposure_models_PO_logit_cox.xlsx`
+- **DLM**: Week-specific OR and HR (weeks 1–39) with 95% CI. Results saved to `03_Output/DLM/DLM_PO_results.RData` and `03_Output/DLM/Tab_DLM_PO.xlsx`
 
 ### Exclusion Criteria
 
@@ -235,13 +258,21 @@ Pollution_PerinatalOutcomes_Temuco26/
 │   ├── 0.4 Functions_models.R
 │   ├── 1.0 Descriptive.R
 │   ├── 2.0 Exposure_PO_Models.R
-│   ├── 3.0 Exposure_PO_Plots_Models.R
-│   └── 4.0 DLM_PO_models.R         # Pending
+│   ├── 3.0 Exposure_PO_Tables_Models.R
+│   ├── 4.0 Exposure_PO_Plots_Models.R
+│   ├── 5.0 DLM_PO_estimation.R     # DLM model estimation
+│   └── 5.1 DLM_PO_tables_plots.R   # DLM tables and figures
 ├── 03_Output/
-│   └── Models/
-│       ├── Exposure_models_PO_logit_cox.xlsx
-│       ├── Plots_logit/             # OR figures
-│       └── Plots_cox/               # HR figures
+│   ├── Models/
+│   │   ├── Exposure_models_PO_logit_cox.xlsx
+│   │   ├── Tables/                  # Tab_Exposure_PO.xlsx
+│   │   ├── Plots_logit/             # Exposure OR figures
+│   │   └── Plots_cox/               # Exposure HR figures
+│   └── DLM/
+│       ├── DLM_PO_results.RData
+│       ├── Tab_DLM_PO.xlsx
+│       ├── Plots_logit/             # DLM OR figures
+│       └── Plots_cox/               # DLM HR figures
 └── README.md
 ```
 

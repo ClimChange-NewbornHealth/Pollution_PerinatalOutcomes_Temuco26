@@ -14,40 +14,36 @@ source("02_Code/0.4 Functions_models.R")
 ## 1 Load data ----
 
 data <- rio::import("01_Input/Data_full_sample_exposure.RData")
-glimpse(data)
+#glimpse(data)
 
 ## 2 Prepare data for the models ----
 
-# Filtramos datos con valores válidos en variables dependientes
-data_model <- data |>
+# Prepare variables: all data in wide format 
+data <- data |>
   mutate(mes_nac = lubridate::month(fecha_nac)) |> 
   select("idbase", "edad_gest", starts_with("birth_"), "lbw", "tlbw", "sga", 
          "edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac",
-         starts_with("pct1_"), starts_with("t1_"), starts_with("t2_"),
-         starts_with("t3_"), starts_with("w20_"), starts_with("tot_")) |> 
+         starts_with("w")) |> 
   select(-"birth_extremely_preterm", -"birth_term", -"birth_posterm") |> 
+  select(-starts_with("w-")) |>   
+  relocate(c("w20_PM25_cs", "w20_PM25_sp"), .after = "w19_PM25_sp") |> 
+  relocate(c("w20_Levo_cs", "w20_Levo_sp"), .after = "w19_Levo_sp") |> 
+  relocate(c("w20_K_cs", "w20_K_sp"), .after = "w19_K_sp") |> 
   filter(!is.na(lbw | tlbw | sga)) |> 
   filter(edad_gest >= 28)
 
-glimpse(data_model)
-summary(data_model)
-
 ## 3. Define and create a grid models ----
-## Open Data ---- 
-data_full <- rio::import("Output/Data_malf_exposure_long.RData") 
-
 # Variables
-dependent_vars <- c("malf", "malf_card_bin")
-contaminantes <- c("PM25", "Levo", "K")
-tipos <- c("cs", "sp")
-control_vars <- c("edad_madre", "sexo_rn", "a_nac", "estacion")
+# Dependente vars
+dependent_vars <- c(colnames(data)[str_detect(colnames(data), pattern = "birth_.*")], "lbw", "tlbw", "sga")
+dependent_vars
 
-## Preparamos los datos base ---- 
-data_full_long <- data_full |> 
-  filter(str_detect(tiempo, "w")) |>
-  mutate(week = as.integer(str_extract(tiempo, "(?<=w)-?\\d+"))) |> 
-  mutate(week_pct = as.integer(str_extract(tiempo, "(?<=w)-?\\d+"))+13) |> 
-  arrange(malf, idbase, week)
+# Covariantes
+control_vars <- c("edad_madre", "sexo_rn", "a_nac", "mes_nac", "comuna")
+
+# Contaminants 
+contaminants <- c("PM25", "Levo", "K")
+types <- c("cs", "sp") # Spatial models 
 
 ## Función para procesar un modelo ----
 process_dlm_model <- function(dep_var, contam, tipo_val, data_long, control_vars) {
@@ -201,7 +197,16 @@ all_plots <- list()
 
 # Etiquetas para contaminantes
 contam_labels <- c("PM25" = "PM2.5", "Levo" = "Levoglucosan", "K" = "Potasio")
-dep_labels <- c("malf" = "Malformación General", "malf_card_bin" = "Malformación Cardíaca")
+outcomes_labels <- c(
+  "birth_preterm"            = "Preterm birth",
+  "birth_very_preterm"       = "Very preterm birth",
+  "birth_moderately_preterm" = "Moderately preterm birth",
+  "birth_late_preterm"       = "Late preterm birth",
+  "lbw"                      = "Low birth weight",
+  "tlbw"                     = "Very low birth weight",
+  "sga"                      = "Small for gestational age"
+)
+
 
 # Panel labels
 panel_labels <- LETTERS[1:12]

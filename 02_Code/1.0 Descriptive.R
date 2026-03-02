@@ -135,66 +135,6 @@ ggsave(paste0(outfile, "/PO_time_trends.png"),
         device = ragg::agg_png
       )
 
-## 2.5 Exposure levels table by group ----
-
-# Exposure variables: w20, t1, t2, t3, overall (tot) for each pollutant (PM25, Levo, K) and type (cs, sp)
-exposure_vars <- names(data_des)[grepl("^(w20|t1|t2|t3|tot)_(PM25|Levo|K)_(cs|sp)$", names(data_des))]
-
-# Groups: All sample + 7 perinatal outcomes (those with outcome = 1)
-group_labels <- c(
-  "All" = "All sample",
-  "birth_preterm" = "Preterm birth",
-  "birth_very_preterm" = "Very preterm birth",
-  "birth_moderately_preterm" = "Moderately preterm birth",
-  "birth_late_preterm" = "Late preterm birth",
-  "lbw" = "Low birth weight",
-  "tlbw" = "Very low birth weight",
-  "sga" = "Small for gestational age"
-)
-
-# Format: mean (SD) with 2 decimals, period as separator
-format_mean_sd <- function(m, s) {
-  sprintf("%.2f (%.2f)", m, s)
-}
-
-# Build table: rows = exposure, cols = groups
-tab_exposure_list <- list()
-for (g in names(group_labels)) {
-  if (g == "All") {
-    dat <- data_des
-  } else {
-    dat <- data_des |> filter(.data[[g]] == 1)
-  }
-  means <- sapply(exposure_vars, function(v) mean(dat[[v]], na.rm = TRUE))
-  sds   <- sapply(exposure_vars, function(v) sd(dat[[v]], na.rm = TRUE))
-  tab_exposure_list[[group_labels[g]]] <- format_mean_sd(means, sds)
-}
-
-tab_exposure <- as.data.frame(tab_exposure_list, row.names = exposure_vars)
-tab_exposure <- tab_exposure |> tibble::rownames_to_column("Exposure")
-
-# Split into Contaminant, Exposure (window), and Type
-pollutant_lab <- c("PM25" = "PM2.5", "Levo" = "Levo", "K" = "K")
-window_lab   <- c("w20" = "w20", "t1" = "T1", "t2" = "T2", "t3" = "T3", "tot" = "Overall")
-group_cols   <- setNames(make.names(group_labels), NULL)  # as.data.frame converts names
-tab_exposure <- tab_exposure |>
-  mutate(
-    Contaminant = stringr::str_extract(Exposure, "(PM25|Levo|K)"),
-    Type        = stringr::str_extract(Exposure, "(cs|sp)$"),
-    Exposure    = stringr::str_extract(Exposure, "^(w20|t1|t2|t3|tot)")
-  ) |>
-  mutate(
-    Contaminant = pollutant_lab[Contaminant],
-    Exposure    = window_lab[Exposure]
-  ) |>
-  select(Contaminant, Exposure, Type, all_of(group_cols))
-
-# Restore readable column names for Excel
-names(tab_exposure)[-(1:3)] <- as.character(group_labels)
-
-# Ensure period as decimal separator (options already set in 0.1 Settings)
-writexl::write_xlsx(list(Exposure_levels = tab_exposure), path = paste0(outfile, "/Exposure_levels_by_group.xlsx"))
-
 ## 3. Iteration by comuna ----
 
 # Comuna labels: TEM = Temuco, PLC = Padre las casas
@@ -289,3 +229,166 @@ ggsave(paste0(outfile, "/PO_time_trends_by_comuna.png"),
        device = ragg::agg_png
 )
   
+
+## 4 Exposure levels table by group ----
+
+# Exposure variables: w20, t1, t2, t3, overall (tot) for each pollutant (PM25, Levo, K) and type (cs, sp)
+exposure_vars <- names(data_des)[grepl("^(w20|t1|t2|t3|tot)_(PM25|Levo|K)_(cs|sp)$", names(data_des))]
+
+# Groups: All sample + 7 perinatal outcomes (those with outcome = 1)
+group_labels <- c(
+  "All" = "All sample",
+  "birth_preterm" = "Preterm birth",
+  "birth_very_preterm" = "Very preterm birth",
+  "birth_moderately_preterm" = "Moderately preterm birth",
+  "birth_late_preterm" = "Late preterm birth",
+  "lbw" = "Low birth weight",
+  "tlbw" = "Very low birth weight",
+  "sga" = "Small for gestational age"
+)
+
+# Format: mean (SD) with 2 decimals, period as separator
+format_mean_sd <- function(m, s) {
+  sprintf("%.2f (%.2f)", m, s)
+}
+
+# Build table: rows = exposure, cols = groups
+tab_exposure_list <- list()
+for (g in names(group_labels)) {
+  if (g == "All") {
+    dat <- data_des
+  } else {
+    dat <- data_des |> filter(.data[[g]] == 1)
+  }
+  means <- sapply(exposure_vars, function(v) mean(dat[[v]], na.rm = TRUE))
+  sds   <- sapply(exposure_vars, function(v) sd(dat[[v]], na.rm = TRUE))
+  tab_exposure_list[[group_labels[g]]] <- format_mean_sd(means, sds)
+}
+
+tab_exposure <- as.data.frame(tab_exposure_list, row.names = exposure_vars)
+tab_exposure <- tab_exposure |> tibble::rownames_to_column("Exposure")
+
+# Split into Contaminant, Exposure (window), and Type
+pollutant_lab <- c("PM25" = "PM2.5", "Levo" = "Levo", "K" = "K")
+window_lab   <- c("w20" = "w20", "t1" = "T1", "t2" = "T2", "t3" = "T3", "tot" = "Overall")
+group_cols   <- setNames(make.names(group_labels), NULL)  # as.data.frame converts names
+tab_exposure <- tab_exposure |>
+  mutate(
+    Contaminant = stringr::str_extract(Exposure, "(PM25|Levo|K)"),
+    Type        = stringr::str_extract(Exposure, "(cs|sp)$"),
+    Exposure    = stringr::str_extract(Exposure, "^(w20|t1|t2|t3|tot)")
+  ) |>
+  mutate(
+    Contaminant = pollutant_lab[Contaminant],
+    Exposure    = window_lab[Exposure]
+  ) |>
+  select(Contaminant, Exposure, Type, all_of(group_cols))
+
+# Restore readable column names for Excel
+names(tab_exposure)[-(1:3)] <- as.character(group_labels)
+
+# Ensure period as decimal separator (options already set in 0.1 Settings)
+writexl::write_xlsx(list(Exposure_levels = tab_exposure), path = paste0(outfile, "/Exposure_levels_by_group.xlsx"))
+
+## 5. Descriptive stats ----
+
+table_des <- data_des |>
+  select(
+    starts_with("birth_"), lbw, tlbw, sga,
+    edad_gest, sexo_rn, edad_madre, comuna, a_nac, mes_nac
+  )
+
+# Groups: All sample + 7 perinatal outcomes
+group_labels_des <- c(
+  "All" = "All sample",
+  "birth_preterm" = "Preterm birth",
+  "birth_very_preterm" = "Very preterm birth",
+  "birth_moderately_preterm" = "Moderately preterm birth",
+  "birth_late_preterm" = "Late preterm birth",
+  "lbw" = "Low birth weight",
+  "tlbw" = "Very low birth weight",
+  "sga" = "Small for gestational age"
+)
+
+# Build descriptives: numeric = Mean (SD), categorical = XX.X% (n=XX)
+# Format with 1 decimal, period as separator
+format_pct <- function(pct, n) sprintf("%.1f%% (n=%d)", pct, n)
+format_mean_sd_des <- function(m, s) sprintf("%.1f (SD=%.1f)", m, s)
+
+# Define fixed row structure (from full sample)
+sexo_levels <- sort(unique(na.omit(table_des$sexo_rn)))
+a_nac_levels <- sort(unique(na.omit(table_des$a_nac)))
+mes_levels <- sort(unique(na.omit(table_des$mes_nac)))
+
+rows_var <- c("N", "edad_gest", "edad_madre",
+              rep("sexo_rn", length(sexo_levels)),
+              rep("a_nac", length(a_nac_levels)),
+              rep("mes_nac", length(mes_levels)))
+rows_char <- c("", "Mean (SD)", "Mean (SD)",
+               as.character(sexo_levels),
+               as.character(a_nac_levels),
+               as.character(mes_levels))
+
+# For each group, compute value for each row
+tab_des_list <- list(Variable = rows_var, Characteristic = rows_char)
+
+for (g in names(group_labels_des)) {
+  dat <- if (g == "All") table_des else table_des |> filter(.data[[g]] == 1)
+  n_g <- nrow(dat)
+  vals <- character(length(rows_var))
+  i <- 0L
+
+  # N
+  i <- i + 1L
+  vals[i] <- sprintf("N=%d", n_g)
+
+  # edad_gest
+  i <- i + 1L
+  vals[i] <- format_mean_sd_des(mean(dat$edad_gest, na.rm = TRUE), sd(dat$edad_gest, na.rm = TRUE))
+
+  # edad_madre
+  i <- i + 1L
+  vals[i] <- format_mean_sd_des(mean(dat$edad_madre, na.rm = TRUE), sd(dat$edad_madre, na.rm = TRUE))
+
+  # sexo_rn
+  for (lev in sexo_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$sexo_rn == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  # a_nac
+  for (lev in a_nac_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$a_nac == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  # mes_nac
+  for (lev in mes_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$mes_nac == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  tab_des_list[[group_labels_des[g]]] <- vals
+}
+
+tab_descriptives <- as.data.frame(tab_des_list, stringsAsFactors = FALSE)
+# Restore readable column names (as.data.frame converts spaces to dots)
+names(tab_descriptives)[-(1:2)] <- as.character(group_labels_des)
+
+writexl::write_xlsx(list(Descriptives = tab_descriptives), path = paste0(outfile, "/Table_descriptives.xlsx"))
+
+## 6. Table Birth ----
+
+des_births <- table_des |> 
+  select(starts_with("birth_"), "lbw", "tlbw", "sga") |>
+  pivot_longer(everything(), names_to = "Outcome", values_to = "Prevalence") |> 
+  group_by(Outcome) |> 
+  summarise(
+    Prevalence_pct = mean(Prevalence, na.rm = TRUE)*100,
+    n = sum(Prevalence, na.rm = TRUE)
+  ) 
+
+writexl::write_xlsx(list(Descriptives = des_births), path = paste0(outfile, "/Table_births_descriptives.xlsx"))

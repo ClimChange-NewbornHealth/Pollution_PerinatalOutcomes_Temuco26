@@ -29,16 +29,18 @@ outcomes_order <- c(
   "sga"
 )
 
+# Outcome labels (aligned with Data_dictionary_PO_pollution.md)
 outcomes_labels <- c(
-  "birth_preterm"            = "Preterm birth",
-  "birth_very_preterm"       = "Very preterm birth",
-  "birth_moderately_preterm" = "Moderately preterm birth",
-  "birth_late_preterm"       = "Late preterm birth",
-  "lbw"                      = "Low birth weight (LBW)",
-  "tlbw"                     = "Low birth weight of term (tLBW)",
+  "birth_preterm"            = "Preterm birth (<37 weeks)",
+  "birth_very_preterm"       = "Very preterm birth (28–31 weeks)",
+  "birth_moderately_preterm" = "Moderately preterm birth (32–33 weeks)",
+  "birth_late_preterm"       = "Late preterm birth (34–36 weeks)",
+  "lbw"                      = "Low birth weight (<2500 g)",
+  "tlbw"                     = "Very low birth weight (<1500 g)",
   "sga"                      = "Small for gestational age (SGA)"
 )
 
+# Panel labels: letter + outcome name for each subplot
 panel_labels <- setNames(
   paste0(LETTERS[seq_along(outcomes_order)], ". ", outcomes_labels[outcomes_order]),
   outcomes_order

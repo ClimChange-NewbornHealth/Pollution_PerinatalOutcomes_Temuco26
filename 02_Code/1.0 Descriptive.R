@@ -5,6 +5,8 @@ source("02_Code/0.1 Settings.R")
 source("02_Code/0.2 Packages.R")
 source("02_Code/0.3 Functions.R")
 
+outfile <- "03_Output/Descriptives"
+
 ## Note perinatal outcomes definitions (no execute):
 
 # Refs p10 weeks 28-42 (Alarcón & Pittaluga)
@@ -48,7 +50,7 @@ source("02_Code/0.3 Functions.R")
 data <- rio::import("01_Input/Data_full_sample_exposure.RData")
 glimpse(data)
 
-data <- data |>
+data_des <- data |>
   mutate(mes_nac = lubridate::month(fecha_nac)) |> 
   select("idbase", "edad_gest", starts_with("birth_"), "lbw", "tlbw", "sga", 
          "edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac",
@@ -58,4 +60,78 @@ data <- data |>
   filter(!is.na(lbw | tlbw | sga)) |> 
   filter(edad_gest >= 28)
 
-glimpse(data)
+glimpse(data_des)
+
+# Labels outcomes 
+outcomes_order <- c(
+  "birth_preterm",
+  "birth_very_preterm",
+  "birth_moderately_preterm",
+  "birth_late_preterm",
+  "lbw",
+  "tlbw",
+  "sga"
+)
+
+outcomes_labels <- c(
+  "birth_preterm"            = "A. Preterm birth",
+  "birth_very_preterm"       = "B. Very preterm birth",
+  "birth_moderately_preterm" = "C. Moderately preterm birth",
+  "birth_late_preterm"       = "D. Late preterm birth",
+  "lbw"                      = "E. Low birth weight",
+  "tlbw"                     = "F. Very low birth weight",
+  "sga"                      = "G. Small for gestational age"
+)
+
+
+## 2. Perinatal outcomes time trend ----
+
+# Estimate perinatal outcomes 
+po_trends <- data_des |> 
+  mutate(month_nac = lubridate::as_date(paste0(a_nac, "-", mes_nac, "-01"))) |> 
+  group_by(month_nac) |> # comuna
+  summarise(
+    n_births = n(),
+    birth_preterm = mean(birth_preterm, na.rm = TRUE),
+    birth_very_preterm = mean(birth_very_preterm, na.rm = TRUE),
+    birth_moderately_preterm = mean(birth_moderately_preterm, na.rm = TRUE),
+    birth_late_preterm = mean(birth_late_preterm, na.rm = TRUE),
+    lbw = mean(lbw, na.rm = TRUE),
+    tlbw = mean(tlbw, na.rm = TRUE),
+    sga = mean(sga, na.rm = TRUE)
+  ) 
+
+# Plot trends 
+po_trends_plot  <- po_trends |> 
+  select(-n_births) |>
+  filter(month_nac >= "2009-11-01") |> 
+  pivot_longer(-month_nac, names_to = "outcome") |>
+  mutate(label = recode(outcome, !!!outcomes_labels)) |> 
+  ggplot(aes(x = month_nac, y = value*100)) +
+  geom_line(color = "#08519c") +
+  geom_point(color = "#08519c", size = 0.5) +
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2), color="gray30", alpha=0.5, linewidth=0.5) +
+  labs(
+    y = "Prevalence (per 100)",
+    x = NULL,
+  ) +
+  facet_wrap(~label, ncol = 2, scales = "free") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  scale_y_continuous(n.breaks = 5) +
+  theme_light() +
+  theme(plot.title = element_text(size = 11, hjust = 0, face = "bold"),
+        strip.background = element_rect(fill = NA, color = NA),
+        strip.text = element_text(color = "black", size = 10, face = "bold", hjust = 0),
+        panel.grid = element_blank()
+  )
+
+ggsave(paste0(outfile, "/PO_time_trends.png"),
+        plot = po_trends_plot,
+        res = 300,
+        width = 20,
+        height = 20,
+        scale = 1.25,
+        units = "cm",
+        device = ragg::agg_png
+      )
+  

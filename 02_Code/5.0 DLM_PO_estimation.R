@@ -104,7 +104,7 @@ contaminants <- c("PM25", "Levo", "K")
 types <- c("cs", "sp")
 
 # Analysis weeks: 1 to 39 only (exclude week 0)
-weeks_analysis <- 1:39
+weeks_analysis <- 1:37
 
 ## 7 Fit DLM models per contaminant, type, outcome ----
 
@@ -114,6 +114,7 @@ weeks_analysis <- 1:39
 results_logit <- list()
 results_cox <- list()
 
+tic("DLM model estimation")
 for (contam in contaminants) {
   for (tipo_val in types) {
 
@@ -194,6 +195,7 @@ for (contam in contaminants) {
     }
   }
 }
+toc() # 639,048 sec elapsed ~ 10 min 
 
 ## 8 Save results ----
 

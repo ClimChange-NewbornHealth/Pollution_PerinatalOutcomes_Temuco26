@@ -154,6 +154,7 @@ ensure_log_cols <- function(tbl, log_est = "log_or", log_lo = "log_or_conf.low",
 list_log_scale <- list()
 list_ratio_scale <- list()
 
+tic("Time plotes DLM:")
 for (cont in contaminants) {
   for (tp in types) {
 
@@ -342,6 +343,7 @@ for (cont in contaminants) {
     }
   }
 }
+toc() # Time plotes DLM: 17,549 sec elapsed
 
 ## 6 Save compiled figure lists ----
 

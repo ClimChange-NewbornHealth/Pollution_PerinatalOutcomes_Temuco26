@@ -53,3 +53,5 @@ rsconnect/
 # Models results
 03_Output/Models/Plots_compiled_figures.RData
 03_Output/DLM/Plots_compiled_figures.RData
+01_Input/new_covariates_base_eb_emod.xlsx
+01_Input/Codebook MEQ 181002.docx

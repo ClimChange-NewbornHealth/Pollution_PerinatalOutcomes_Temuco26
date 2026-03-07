@@ -16,6 +16,7 @@ install_load <- function(packages){
 install_load(c("rio", 
                "data.table",
                "tidyverse",
+               "chilemapas",
                "future",
                "furrr",
                "ragg",
@@ -31,5 +32,6 @@ install_load(c("rio",
                "future",
                "future.apply",
                "ggpubr",
-               "ggplot2"
+               "ggplot2", 
+               "sf"
                ))

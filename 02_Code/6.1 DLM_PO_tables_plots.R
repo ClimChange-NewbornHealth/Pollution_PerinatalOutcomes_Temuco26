@@ -1,4 +1,4 @@
-# 5.1 DLM Perinatal Outcomes - Tables and Plots ----
+# 6.1 DLM Perinatal Outcomes - Tables and Plots ----
 # Loads DLM results from 5.0, creates Excel tables and compiled figures.
 # Tables: one sheet per outcome-exposure, week effects only.
 # Figures: one panel per contaminant-tipo, each subplot = one outcome (2 cols x 4 rows).

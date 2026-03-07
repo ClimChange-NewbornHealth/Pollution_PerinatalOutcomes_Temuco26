@@ -1,4 +1,4 @@
-# 1.0 Descriptives analysis -----
+# 2.0 Descriptives analysis -----
 
 ## Settings ----
 source("02_Code/0.1 Settings.R")

@@ -358,7 +358,7 @@ for (scale in exposure_scales) {
     }
   }
 }
-toc() # Time plotes DLM: 17,549 sec elapsed
+toc() # Time plotes DLM: 65,575 sec elapsed
 
 ## 6 Save compiled figure lists ----
 

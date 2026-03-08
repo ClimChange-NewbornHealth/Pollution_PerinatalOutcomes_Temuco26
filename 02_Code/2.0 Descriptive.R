@@ -47,18 +47,22 @@ outfile <- "03_Output/Descriptives"
 #  select(-p10) 
 
 ## 1. Load perinatal outcomes data ----
-data <- rio::import("01_Input/Data_full_sample_exposure.RData")
+data <- rio::import("01_Input/Data_full_sample_exposure_analysis.RData")
+data_geo <- rio::import("01_Input/Data_full_sample_exposure_geo.RData")
 glimpse(data)
+glimpse(data_geo)
 
 data_des <- data |>
   mutate(mes_nac = lubridate::month(fecha_nac)) |> 
   select("idbase", "edad_gest", starts_with("birth_"), "lbw", "tlbw", "sga", 
          "edad_madre", "sexo_rn", "a_nac", "estacion", "comuna", "a_nac", "mes_nac",
+         "education", "health_insurance", "job", "first_birth", "para", "cesarea",
          starts_with("pct1_"), starts_with("t1_"), starts_with("t2_"),
          starts_with("t3_"), starts_with("w20_"), starts_with("tot_")) |> 
   select(-"birth_extremely_preterm", -"birth_term", -"birth_posterm") |> 
   filter(!is.na(lbw | tlbw | sga)) |> 
-  filter(edad_gest >= 28)
+  filter(edad_gest >= 28) |> 
+  mutate(cesarea = factor(cesarea, levels = c(0, 1), labels = c("Spontaneous", "Cesarean"))) 
 
 glimpse(data_des)
 
@@ -125,6 +129,8 @@ po_trends_plot  <- po_trends |>
         panel.grid = element_blank()
   )
 
+po_trends_plot
+
 ggsave(paste0(outfile, "/PO_time_trends.png"),
         plot = po_trends_plot,
         res = 300,
@@ -167,10 +173,8 @@ for (com in names(comuna_labels)) {
 # Add overall sheet
 po_trends_export <- po_trends
 sheets_comuna[["Overall"]] <- po_trends_export
-
-dir.create(outfile, recursive = TRUE, showWarnings = FALSE)
 writexl::write_xlsx(sheets_comuna, path = paste0(outfile, "/PO_time_trends_by_comuna.xlsx"))
-message("Saved: ", outfile, "/PO_time_trends_by_comuna.xlsx")
+
 
 # Plot by comuna: one plot per comuna, facet in one column, then ggarrange
 plot_by_comuna <- function(data_trends, comuna_code, comuna_name) {
@@ -218,6 +222,8 @@ po_trends_comuna_plot <- ggpubr::ggarrange(
   nrow = 1,
   widths = c(1, 1)
 )
+
+po_trends_comuna_plot
 
 ggsave(paste0(outfile, "/PO_time_trends_by_comuna.png"),
        plot = po_trends_comuna_plot,
@@ -295,8 +301,10 @@ writexl::write_xlsx(list(Exposure_levels = tab_exposure), path = paste0(outfile,
 table_des <- data_des |>
   select(
     starts_with("birth_"), lbw, tlbw, sga,
-    edad_gest, sexo_rn, edad_madre, comuna, a_nac, mes_nac
-  )
+    edad_gest, sexo_rn, 
+    edad_madre, education, health_insurance, job, first_birth, para, cesarea,
+    comuna, a_nac, mes_nac
+    ) 
 
 # Groups: All sample + 7 perinatal outcomes
 group_labels_des <- c(
@@ -315,19 +323,43 @@ group_labels_des <- c(
 format_pct <- function(pct, n) sprintf("%.1f%% (n=%d)", pct, n)
 format_mean_sd_des <- function(m, s) sprintf("%.1f (SD=%.1f)", m, s)
 
-# Define fixed row structure (from full sample)
-sexo_levels <- sort(unique(na.omit(table_des$sexo_rn)))
+# Define row structure from full sample (all variables to describe by outcome)
+sexo_levels <- sort(unique(na.omit(as.character(table_des$sexo_rn))))
+education_levels <- sort(unique(na.omit(as.character(table_des$education))))
+health_insurance_levels <- sort(unique(na.omit(as.character(table_des$health_insurance))))
+job_levels <- sort(unique(na.omit(as.character(table_des$job))))
+first_birth_levels <- sort(unique(na.omit(as.character(table_des$first_birth))))
+cesarea_levels <- sort(unique(na.omit(as.character(table_des$cesarea))))
+comuna_levels <- sort(unique(na.omit(as.character(table_des$comuna))))
 a_nac_levels <- sort(unique(na.omit(table_des$a_nac)))
 mes_levels <- sort(unique(na.omit(table_des$mes_nac)))
 
-rows_var <- c("N", "edad_gest", "edad_madre",
-              rep("sexo_rn", length(sexo_levels)),
-              rep("a_nac", length(a_nac_levels)),
-              rep("mes_nac", length(mes_levels)))
-rows_char <- c("", "Mean (SD)", "Mean (SD)",
-               as.character(sexo_levels),
-               as.character(a_nac_levels),
-               as.character(mes_levels))
+rows_var <- c(
+  "N",
+  "edad_gest", "edad_madre", "para",
+  rep("sexo_rn", length(sexo_levels)),
+  rep("education", length(education_levels)),
+  rep("health_insurance", length(health_insurance_levels)),
+  rep("job", length(job_levels)),
+  rep("first_birth", length(first_birth_levels)),
+  rep("cesarea", length(cesarea_levels)),
+  rep("comuna", length(comuna_levels)),
+  rep("a_nac", length(a_nac_levels)),
+  rep("mes_nac", length(mes_levels))
+)
+rows_char <- c(
+  "",
+  "Mean (SD)", "Mean (SD)", "Mean (SD)",
+  sexo_levels,
+  education_levels,
+  health_insurance_levels,
+  job_levels,
+  first_birth_levels,
+  cesarea_levels,
+  comuna_levels,
+  as.character(a_nac_levels),
+  as.character(mes_levels)
+)
 
 # For each group, compute value for each row
 tab_des_list <- list(Variable = rows_var, Characteristic = rows_char)
@@ -350,10 +382,56 @@ for (g in names(group_labels_des)) {
   i <- i + 1L
   vals[i] <- format_mean_sd_des(mean(dat$edad_madre, na.rm = TRUE), sd(dat$edad_madre, na.rm = TRUE))
 
+  # para
+  i <- i + 1L
+  vals[i] <- format_mean_sd_des(mean(dat$para, na.rm = TRUE), sd(dat$para, na.rm = TRUE))
+
   # sexo_rn
   for (lev in sexo_levels) {
     i <- i + 1L
     n_lev <- sum(dat$sexo_rn == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  # education
+  for (lev in education_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$education == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  # health_insurance
+  for (lev in health_insurance_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$health_insurance == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  # job
+  for (lev in job_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$job == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  # first_birth
+  for (lev in first_birth_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$first_birth == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  # cesarea
+  for (lev in cesarea_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$cesarea == lev, na.rm = TRUE)
+    vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
+  }
+
+  # comuna
+  for (lev in comuna_levels) {
+    i <- i + 1L
+    n_lev <- sum(dat$comuna == lev, na.rm = TRUE)
     vals[i] <- format_pct(100 * n_lev / n_g, n_lev)
   }
 

@@ -470,3 +470,248 @@ des_births <- table_des |>
   ) 
 
 writexl::write_xlsx(list(Descriptives = des_births), path = paste0(outfile, "/Table_births_descriptives.xlsx"))
+
+## 7. Correlation exposure metrics ----
+
+# Correlate t1, t2, t3, overall within each contaminant (cs and sp separately)
+# Table: contaminante, tiempo | t1, t2, t3, overall (cs) | t1, t2, t3, overall (sp)
+contaminants <- c("PM25", "Levo", "K")
+time_windows <- c("t1", "t2", "t3", "overall")
+
+format_cor <- function(x) sprintf("%.3f", x)
+format_pval <- function(p) ifelse(is.na(p), "NA", ifelse(p < 0.001, "<0.001", sprintf("%.3f", p)))
+
+tab_cor_list <- list()
+tab_corr_pval_list <- list()
+for (cont in contaminants) {
+  vars_cs <- paste0(c("t1", "t2", "t3", "tot"), "_", cont, "_cs")
+  vars_sp <- paste0(c("t1", "t2", "t3", "tot"), "_", cont, "_sp")
+
+  dat_cs <- data_des |> select(all_of(vars_cs))
+  dat_sp <- data_des |> select(all_of(vars_sp))
+
+  cor_cs <- cor(dat_cs, use = "pairwise.complete.obs")
+  cor_sp <- cor(dat_sp, use = "pairwise.complete.obs")
+
+  for (i in seq_along(time_windows)) {
+    tw <- time_windows[i]
+    row_cs <- format_cor(cor_cs[i, ])
+    row_sp <- format_cor(cor_sp[i, ])
+    tab_cor_list <- c(tab_cor_list, list(data.frame(
+      contaminante = cont,
+      tiempo = tw,
+      t1_cs = row_cs[1],
+      t2_cs = row_cs[2],
+      t3_cs = row_cs[3],
+      overall_cs = row_cs[4],
+      t1_sp = row_sp[1],
+      t2_sp = row_sp[2],
+      t3_sp = row_sp[3],
+      overall_sp = row_sp[4],
+      stringsAsFactors = FALSE
+    )))
+
+    # P-values from cor.test (same structure as correlations)
+    pval_cs <- numeric(4)
+    pval_sp <- numeric(4)
+    for (j in 1:4) {
+      ct_cs <- tryCatch(cor.test(dat_cs[[i]], dat_cs[[j]], exact = FALSE),
+        error = function(e) list(p.value = NA_real_))
+      ct_sp <- tryCatch(cor.test(dat_sp[[i]], dat_sp[[j]], exact = FALSE),
+        error = function(e) list(p.value = NA_real_))
+      pval_cs[j] <- ct_cs$p.value
+      pval_sp[j] <- ct_sp$p.value
+    }
+    row_pval_cs <- format_pval(pval_cs)
+    row_pval_sp <- format_pval(pval_sp)
+    tab_corr_pval_list <- c(tab_corr_pval_list, list(data.frame(
+      contaminante = cont,
+      tiempo = tw,
+      t1_cs = row_pval_cs[1],
+      t2_cs = row_pval_cs[2],
+      t3_cs = row_pval_cs[3],
+      overall_cs = row_pval_cs[4],
+      t1_sp = row_pval_sp[1],
+      t2_sp = row_pval_sp[2],
+      t3_sp = row_pval_sp[3],
+      overall_sp = row_pval_sp[4],
+      stringsAsFactors = FALSE
+    )))
+  }
+}
+
+tab_correlations <- bind_rows(tab_cor_list)
+tab_corr_pval <- bind_rows(tab_corr_pval_list)
+
+# Columns: contaminante, tiempo | t1, t2, t3, overall (cs) | t1, t2, t3, overall (sp)
+names(tab_correlations) <- c("contaminante", "tiempo",
+  "t1_cs", "t2_cs", "t3_cs", "overall_cs",
+  "t1_sp", "t2_sp", "t3_sp", "overall_sp")
+names(tab_corr_pval) <- names(tab_correlations)
+
+tab_correlations
+tab_corr_pval
+
+writexl::write_xlsx(
+  list(Correlations = tab_correlations, P_values = tab_corr_pval),
+  path = paste0(outfile, "/Table_correlations_exposure.xlsx")
+)
+
+# Scatter plots: t1 vs t2, t1 vs t3, t1 vs overall, t2 vs t3, t2 vs overall, t3 vs overall
+# Two panels (cs, sp), facet: 6 columns (trimestres) x 3 rows (contaminants), contaminant legend on the right
+pairs_list <- list(
+  c("t1", "t2"), c("t1", "t3"), c("t2", "t3"), c("t1", "tot"), c("t2", "tot"), c("t3", "tot")
+)
+pair_labels <- c(
+  "T1 vs T2", "T1 vs T3", "T2 vs T3", "T1 vs Overall", "T2 vs Overall", "T3 vs Overall"
+)
+contaminant_labels <- c("PM25" = "PM2.5", "Levo" = "Levoglucosan", "K" = "K")
+
+make_cor_label <- function(x, y, data) {
+  test <- cor.test(data[[x]], data[[y]], exact = FALSE)
+  r <- formatC(test$estimate, format = "f", digits = 2, decimal.mark = ".")
+  p <- sub(",", ".", format.pval(test$p.value, digits = 3, eps = .001), fixed = TRUE)
+  paste0("r = ", r, ", p", p)
+}
+
+build_scatter_data <- function(type_suffix) {
+  out_list <- list()
+  for (cont in contaminants) {
+    for (k in seq_along(pairs_list)) {
+      x_var <- paste0(pairs_list[[k]][1], "_", cont, type_suffix)
+      y_var <- paste0(pairs_list[[k]][2], "_", cont, type_suffix)
+      dat <- data_des |>
+        select(x = all_of(x_var), y = all_of(y_var)) |>
+        filter(complete.cases(x, y))
+      if (nrow(dat) < 10) next
+      fit <- lm(y ~ x, data = dat)
+      dat$resid <- abs(residuals(fit))
+      dat$intensity <- 1 - (dat$resid / max(dat$resid, na.rm = TRUE))
+      dat$contaminant <- factor(contaminant_labels[cont], levels = contaminant_labels)
+      dat$pair <- factor(pair_labels[k], levels = pair_labels)
+      out_list[[paste(cont, k, sep = "_")]] <- dat
+    }
+  }
+  bind_rows(out_list)
+}
+
+build_label_data <- function(type_suffix) {
+  out_list <- list()
+  for (cont in contaminants) {
+    for (k in seq_along(pairs_list)) {
+      x_var <- paste0(pairs_list[[k]][1], "_", cont, type_suffix)
+      y_var <- paste0(pairs_list[[k]][2], "_", cont, type_suffix)
+      dat <- data_des |> select(all_of(c(x_var, y_var)))
+      dat <- dat[complete.cases(dat), , drop = FALSE]
+      if (nrow(dat) < 10) next
+      lab <- make_cor_label(x_var, y_var, dat)
+      x_pos <- max(dat[[x_var]], na.rm = TRUE)
+      y_pos <- if (type_suffix == "_cs") {
+        if (cont == "PM25") 100 else if (cont == "Levo") 1.5 else 1.75
+      } else {
+        if (cont == "PM25") 300 else if (cont == "Levo") 1.75 else 4
+      }
+      out_list[[paste(cont, k, sep = "_")]] <- data.frame(
+        contaminant = factor(contaminant_labels[cont], levels = contaminant_labels),
+        pair = factor(pair_labels[k], levels = pair_labels),
+        label = lab,
+        x_pos = x_pos,
+        y_pos = y_pos
+      )
+    }
+  }
+  bind_rows(out_list)
+}
+
+plot_scatter_one_contaminant <- function(data_plot, data_labels) {
+  ggplot(data_plot, aes(x = x, y = y, color = intensity)) +
+    geom_point(alpha = 0.7, size = 1.2) +
+    scale_color_viridis_c(option = "plasma", limits = c(0, 1), guide = "none") +
+    geom_smooth(method = "lm", formula = y ~ x, color = "#08519c", alpha = 0.3, linewidth = 1, se = TRUE, inherit.aes = FALSE, aes(x = x, y = y)) +
+    geom_text(
+      data = data_labels,
+      aes(x = x_pos, y = y_pos, label = label),
+      inherit.aes = FALSE,
+      hjust = 1,
+      vjust = 1,
+      size = 3.5
+    ) +
+    facet_grid(contaminant ~ pair, scales = "free", switch = "y") +
+    scale_x_continuous(labels = scales::label_number(decimal.mark = "."), limits = c(0, NA), expand = c(0.02, 0)) +
+    scale_y_continuous(labels = scales::label_number(decimal.mark = "."), limits = c(0, NA), expand = c(0.02, 0)) +
+    labs(x = NULL, y = NULL) +
+    theme_light(base_size = 9) +
+    theme(
+      panel.grid = element_blank(),
+      strip.text.x = element_text(size = 10, color = "black"),
+      strip.text.y.left = element_text(angle = 90, size = 10, color = "black", face = "bold"),
+      #strip.text.y = element_text(angle = 0, size = 10, color = "black", face = "bold"),
+      strip.placement = "outside",
+      strip.background = element_rect(fill = "white", color = "gray95"),
+      legend.position = "none"
+    )
+}
+
+data_cs <- build_scatter_data("_cs")
+data_sp <- build_scatter_data("_sp")
+labels_cs <- build_label_data("_cs")
+labels_sp <- build_label_data("_sp")
+
+# One figure per contaminant row, then combine into 3-row figure for cs and sp
+plots_cs <- lapply(contaminant_labels, function(cont_label) {
+  dat <- filter(data_cs, contaminant == cont_label)
+  lab <- filter(labels_cs, contaminant == cont_label)
+  if (nrow(dat) == 0) return(NULL)
+  plot_scatter_one_contaminant(dat, lab)
+})
+plots_cs <- plots_cs[!sapply(plots_cs, is.null)]
+
+plots_sp <- lapply(contaminant_labels, function(cont_label) {
+  dat <- filter(data_sp, contaminant == cont_label)
+  lab <- filter(labels_sp, contaminant == cont_label)
+  if (nrow(dat) == 0) return(NULL)
+  plot_scatter_one_contaminant(dat, lab)
+})
+plots_sp <- plots_sp[!sapply(plots_sp, is.null)]
+
+fig_scatter_cs <- ggpubr::ggarrange(
+  plotlist = plots_cs,
+  nrow = length(plots_cs),
+  ncol = 1,
+  heights = rep(1, length(plots_cs))
+)
+
+fig_scatter_cs 
+
+fig_scatter_sp <- ggpubr::ggarrange(
+  plotlist = plots_sp,
+  nrow = length(plots_sp),
+  ncol = 1,
+  heights = rep(1, length(plots_sp))
+)
+
+fig_scatter_sp
+
+ggsave(
+  paste0(outfile, "/Scatter_correlations_exposure_cs.png"),
+  plot = fig_scatter_cs,
+  width = 36,
+  height = 7 * length(plots_cs),
+  units = "cm",
+  res = 300,
+  device = ragg::agg_png
+)
+
+ggsave(
+  paste0(outfile, "/Scatter_correlations_exposure_sp.png"),
+  plot = fig_scatter_sp,
+  width = 36,
+  height = 7 * length(plots_sp),
+  units = "cm",
+  res = 300,
+  device = ragg::agg_png
+)
+
+## 8. Maps exposure ----
+
+

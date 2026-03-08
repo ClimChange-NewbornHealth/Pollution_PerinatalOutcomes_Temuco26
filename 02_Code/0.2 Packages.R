@@ -33,5 +33,6 @@ install_load(c("rio",
                "future.apply",
                "ggpubr",
                "ggplot2", 
-               "sf"
+               "sf", 
+               "ggmap"
                ))

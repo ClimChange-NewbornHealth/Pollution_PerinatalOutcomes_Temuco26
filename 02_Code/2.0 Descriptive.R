@@ -855,5 +855,50 @@ ggsave(
 )
 
 
+# Base map: Temuco - Padre las Casas ----
+# Extraction of the base map from Stadia Maps (better definition)
+bbox_data <- st_bbox(data_geo_wgs)
+# Padding ~8% for visual context
+pad_x <- (bbox_data["xmax"] - bbox_data["xmin"]) * 0.08
+pad_y <- (bbox_data["ymax"] - bbox_data["ymin"]) * 0.08
+# Explicit coordinates: left (west), bottom (south), right (east), top (north)
+bbox <- c(
+  left   = as.numeric(bbox_data["xmin"] - pad_x),
+  bottom = as.numeric(bbox_data["ymin"] - pad_y),
+  right  = as.numeric(bbox_data["xmax"] + pad_x),
+  top    = as.numeric(bbox_data["ymax"] + pad_y)
+)
 
+# Try zoom from highest to lowest (zoom 14 = max urban detail)
+mapa_base_temuco <- NULL
+for (z in c(14, 13, 12, 11, 10)) {
+  mapa_base_temuco <- tryCatch(
+    get_stadiamap(bbox, zoom = z, maptype = "stamen_toner_lite"),
+    error = function(e) NULL
+  )
+  if (!is.null(mapa_base_temuco)) {
+    message("Stadia Maps: zoom ", z, " OK")
+    break
+  }
+}
+
+if (is.null(mapa_base_temuco)) {
+  message("get_stadiamap failed at all zoom levels, using maptiles")
+  if (requireNamespace("maptiles", quietly = TRUE)) {
+    library(maptiles)
+    mapa_base_temuco <- get_tiles(data_geo_wgs, provider = "OpenStreetMap", zoom = 15, crop = TRUE)
+  }
+}
+
+# Save with the max resolution 
+if (inherits(mapa_base_temuco, "SpatRaster")) {
+  png(paste0(outfile, "/Mapa_base_Temuco_PadreLasCasas.png"), width = 35, height = 35, units = "cm", res = 600)
+  terra::plotRGB(mapa_base_temuco)
+  dev.off()
+} else {
+  p <- ggmap(mapa_base_temuco)
+  ggsave(paste0(outfile, "/Mapa_base_Temuco_PadreLasCasas.png"), plot = p, width = 35, height = 35, units = "cm", dpi = 600, device = ragg::agg_png)
+}
+
+# Maps exposure with mapbase Temuco - Padre las Casas ----
 

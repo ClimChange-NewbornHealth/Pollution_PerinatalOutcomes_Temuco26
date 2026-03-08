@@ -714,4 +714,146 @@ ggsave(
 
 ## 8. Maps exposure ----
 
+if (!inherits(data_geo, "sf")) {
+  data_geo <- st_as_sf(data_geo, sf_column_name = "geometry")
+}
+data_geo_we <- data_geo |>
+  left_join(
+    select(data, idbase, starts_with("t1_"), starts_with("t2_"), starts_with("t3_"), starts_with("tot_")),
+    by = "idbase"
+  )
+data_geo_wgs <- st_transform(data_geo_we, 4326)
+
+# Palettes per contaminant (low -> high)
+palette_PM25 <- c("#00E400", "#FFFF00", "#FF7E00", "#FF0000", "#8F3F97", "#7E0023")
+palette_Levo <- c("#FFFFFF", "#D4EDDA", "#28A745", "#1E5631", "#0D2818")
+palette_K <- c("#FFFFFF", "#E8DAEF", "#9B59B6", "#5B2C6F", "#1A0A1A")
+
+# Period and contaminant labels
+map_periods <- c("t1" = "T1", "t2" = "T2", "t3" = "T3", "tot" = "Overall")
+map_contaminants <- c("PM25" = "PM2.5", "Levo" = "Levoglucosan", "K" = "K")
+
+# Pivot to long format for mapping
+pivot_geo_long <- function(geo_sf, type_suffix) {
+  vars <- paste0(rep(c("t1", "t2", "t3", "tot"), each = 3), "_",
+                 rep(c("PM25", "Levo", "K"), 4), type_suffix)
+  geo_sf |>
+    select(idbase, geometry, any_of(vars)) |>
+    tidyr::pivot_longer(cols = any_of(vars), names_to = "var", values_to = "value") |>
+    filter(!is.na(value)) |>
+    mutate(
+      period = factor(map_periods[sub("_.*", "", var)], levels = c("T1", "T2", "T3", "Overall")),
+      contaminant = factor(
+        unname(map_contaminants[sapply(strsplit(var, "_"), `[`, 2)]),
+        levels = c("PM2.5", "Levoglucosan", "K")
+      )
+    )
+}
+
+data_map_cs <- pivot_geo_long(data_geo_wgs, "_cs")
+data_map_sp <- pivot_geo_long(data_geo_wgs, "_sp")
+
+# Unified limits per contaminant
+get_map_limits <- function(data_map) {
+  data_map |> group_by(contaminant) |> summarise(min_val = min(value, na.rm = TRUE), max_val = max(value, na.rm = TRUE), .groups = "drop")
+}
+
+limits_cs <- get_map_limits(data_map_cs)
+limits_sp <- get_map_limits(data_map_sp)
+
+# Plot one contaminant row (4 maps: T1, T2, T3, Overall)
+plot_map_row <- function(data_map, limits_df, palette) {
+  cont <- as.character(unique(data_map$contaminant))
+  lims <- limits_df |> filter(contaminant == cont)
+  r_min <- lims$min_val
+  r_max <- lims$max_val
+
+  ggplot(data_map) +
+    geom_sf(aes(color = value), size = 0.2, alpha = 0.8) +
+    scale_color_gradientn(
+      colors = palette,
+      limits = c(r_min, r_max),
+      name = NULL,
+      na.value = "grey90",
+      breaks = seq(r_min, r_max, length.out = 5),
+      labels = function(x) format(round(x, 1), nsmall = 1, decimal.mark = "."),
+      guide = guide_colorbar(
+        barwidth = 12,
+        barheight = 0.4,
+        nbin = 5,
+        label.position = "bottom",
+        title = NULL
+      )
+    ) +
+    facet_grid(contaminant ~ period) +
+    #labs(title = cont) +
+    theme_light(base_size = 9) +
+    theme(
+      panel.grid = element_blank(),
+      legend.position = "top",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 7),
+      strip.text.x = element_text(size = 10 , color = "black"),
+      strip.text.y = element_text(angle = 0, size = 10, color = "black", face = "bold"),
+      strip.placement = "outside",
+      strip.background = element_rect(fill = "white", color = "white"),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      plot.title = element_text(hjust = 0, face = "bold", size = 10),
+      plot.margin = margin(1, 1, 1, 1, "mm")
+    )
+}
+
+# Build map figures: CS and SP separately (4 cols x 3 rows)
+build_map_figure <- function(data_map, limits_df) {
+  plots_list <- list()
+  for (cont in c("PM2.5", "Levoglucosan", "K")) {
+    dat <- filter(data_map, contaminant == cont)
+    if (nrow(dat) == 0) next
+    pal <- switch(cont,
+      "PM2.5" = palette_PM25,
+      "Levoglucosan" = palette_Levo,
+      "K" = palette_K,
+      palette_K
+    )
+    plots_list[[cont]] <- plot_map_row(dat, limits_df, pal)
+  }
+
+  ggpubr::ggarrange(
+    plotlist = plots_list,
+    nrow = length(plots_list),
+    ncol = 1,
+    heights = rep(1, length(plots_list)),
+    common.legend = FALSE,
+    align = "v"
+  )
+}
+
+fig_maps_cs <- build_map_figure(data_map_cs, limits_cs)
+fig_maps_cs
+fig_maps_sp <- build_map_figure(data_map_sp, limits_sp)
+fig_maps_sp
+
+ggsave(
+  paste0(outfile, "/Maps_Exposure_cs.png"),
+  plot = fig_maps_cs,
+  width = 30,
+  height = 20,
+  units = "cm",
+  res = 300,
+  device = ragg::agg_png
+)
+
+ggsave(
+  paste0(outfile, "/Maps_Exposure_sp.png"),
+  plot = fig_maps_sp,
+  width = 30,
+  height = 20,
+  units = "cm",
+  res = 300,
+  device = ragg::agg_png
+)
+
+
+
 

@@ -16,6 +16,7 @@ results_cox <- dlm_results$results_cox
 dependent_vars <- dlm_results$dependent_vars
 contaminants <- dlm_results$contaminants
 types <- dlm_results$types
+exposure_scales <- if ("exposure_scales" %in% names(dlm_results)) dlm_results$exposure_scales else "raw"
 
 ## 2 Outcome labels and order ----
 
@@ -52,49 +53,59 @@ format_effect_ci <- function(estimate, conf_low, conf_high) {
   sprintf("%.3f (%.3f-%.3f)", estimate, conf_low, conf_high)
 }
 
-sheets_list <- list()
-
-for (dep in dependent_vars) {
-  for (cont in contaminants) {
-    for (tp in types) {
-      key <- paste(dep, cont, tp, sep = "_")
-
-      tbl_logit <- results_logit[[key]]
-      tbl_cox <- results_cox[[key]]
-
-      if (is.null(tbl_logit) || nrow(tbl_logit) == 0) next
-      if (is.null(tbl_cox) || nrow(tbl_cox) == 0) next
-
-      tbl_logit <- tbl_logit |> dplyr::arrange(week)
-      tbl_cox <- tbl_cox |> dplyr::arrange(week)
-
-      # Merge by week
-      tab <- dplyr::full_join(
-        tbl_logit |> select(week, estimate, conf.low, conf.high) |> rename(OR = estimate, OR_low = conf.low, OR_high = conf.high),
-        tbl_cox |> select(week, estimate, conf.low, conf.high) |> rename(HR = estimate, HR_low = conf.low, HR_high = conf.high),
-        by = "week"
-      ) |>
-        dplyr::arrange(week) |>
-        dplyr::mutate(
-          `OR (95% CI)` = format_effect_ci(OR, OR_low, OR_high),
-          `HR (95% CI)` = format_effect_ci(HR, HR_low, HR_high)
-        ) |>
-        dplyr::select(Week = week, `OR (95% CI)`, `HR (95% CI)`)
-
-      # Short names for Excel (max 31 chars); avoid truncation/dedup
-      dep_short <- c(
-        birth_preterm = "preterm", birth_very_preterm = "vpreterm",
-        birth_moderately_preterm = "mpreterm", birth_late_preterm = "lpreterm",
-        lbw = "lbw", tlbw = "tlbw", sga = "sga"
-      )[dep]
-      sheet_name <- paste(dep_short, cont, tp, sep = "_")
-      sheets_list[[sheet_name]] <- tab
-    }
-  }
+# Helper: get result by key, supporting both "dep_cont_tp_scale" and legacy "dep_cont_tp"
+get_result <- function(results_list, dep, cont, tp, scale) {
+  key_scale <- paste(dep, cont, tp, scale, sep = "_")
+  key_legacy <- paste(dep, cont, tp, sep = "_")
+  res <- results_list[[key_scale]]
+  if (is.null(res) && scale == "raw") res <- results_list[[key_legacy]]
+  res
 }
 
-writexl::write_xlsx(sheets_list, path = "03_Output/DLM/Tab_DLM_PO.xlsx")
-message("Saved: 03_Output/DLM/Tab_DLM_PO.xlsx")
+for (scale in exposure_scales) {
+  sheets_list <- list()
+
+  for (dep in dependent_vars) {
+    for (cont in contaminants) {
+      for (tp in types) {
+        tbl_logit <- get_result(results_logit, dep, cont, tp, scale)
+        tbl_cox <- get_result(results_cox, dep, cont, tp, scale)
+
+        if (is.null(tbl_logit) || nrow(tbl_logit) == 0) next
+        if (is.null(tbl_cox) || nrow(tbl_cox) == 0) next
+
+        tbl_logit <- tbl_logit |> dplyr::arrange(week)
+        tbl_cox <- tbl_cox |> dplyr::arrange(week)
+
+        # Merge by week
+        tab <- dplyr::full_join(
+          tbl_logit |> select(week, estimate, conf.low, conf.high) |> rename(OR = estimate, OR_low = conf.low, OR_high = conf.high),
+          tbl_cox |> select(week, estimate, conf.low, conf.high) |> rename(HR = estimate, HR_low = conf.low, HR_high = conf.high),
+          by = "week"
+        ) |>
+          dplyr::arrange(week) |>
+          dplyr::mutate(
+            `OR (95% CI)` = format_effect_ci(OR, OR_low, OR_high),
+            `HR (95% CI)` = format_effect_ci(HR, HR_low, HR_high)
+          ) |>
+          dplyr::select(Week = week, `OR (95% CI)`, `HR (95% CI)`)
+
+        # Short names for Excel (max 31 chars); avoid truncation/dedup
+        dep_short <- c(
+          birth_preterm = "preterm", birth_very_preterm = "vpreterm",
+          birth_moderately_preterm = "mpreterm", birth_late_preterm = "lpreterm",
+          lbw = "lbw", tlbw = "tlbw", sga = "sga"
+        )[dep]
+        sheet_name <- paste(dep_short, cont, tp, sep = "_")
+        sheets_list[[sheet_name]] <- tab
+      }
+    }
+  }
+
+  outfile <- if (scale == "raw") "03_Output/DLM/Tab_DLM_PO.xlsx" else "03_Output/DLM/Tab_DLM_PO_IQR.xlsx"
+  writexl::write_xlsx(sheets_list, path = outfile)
+  message("Saved: ", outfile)
+}
 
 ## 4 DLM plot function (week on x, effect on y) ----
 
@@ -155,193 +166,195 @@ ensure_log_cols <- function(tbl, log_est = "log_or", log_lo = "log_or_conf.low",
 
 list_log_scale <- list()
 list_ratio_scale <- list()
+# Raw: original filenames; IQR: _iqr suffix
+scale_suffix <- c(raw = "", iqr = "_iqr")
 
 tic("Time plotes DLM:")
-for (cont in contaminants) {
-  for (tp in types) {
+for (scale in exposure_scales) {
+  sfx <- scale_suffix[scale]
 
-    # --- Logit: log(OR) ---
-    plots_logit_log <- list()
-    for (i in seq_along(outcomes_order)) {
-      dep <- outcomes_order[i]
-      key <- paste(dep, cont, tp, sep = "_")
-      data_one <- results_logit[[key]]
-      if (!is.null(data_one) && nrow(data_one) > 0) {
-        data_one <- ensure_log_cols(data_one, "log_or", "log_or_conf.low", "log_or_conf.high")
-        p <- plot_dlm_outcome(
-          data_one,
-          y_var = "log_or",
-          ymin_var = "log_or_conf.low",
-          ymax_var = "log_or_conf.high",
-          ref_line = 0,
-          y_label = "log(OR) (95% CI)",
-          panel_label = panel_labels[dep],
-          show_legend = (i == 1)
-        )
-        plots_logit_log[[i]] <- p
-      } else {
-        plots_logit_log[[i]] <- NULL
+  for (cont in contaminants) {
+    for (tp in types) {
+
+      # --- Logit: log(OR) ---
+      plots_logit_log <- list()
+      for (i in seq_along(outcomes_order)) {
+        dep <- outcomes_order[i]
+        data_one <- get_result(results_logit, dep, cont, tp, scale)
+        if (!is.null(data_one) && nrow(data_one) > 0) {
+          data_one <- ensure_log_cols(data_one, "log_or", "log_or_conf.low", "log_or_conf.high")
+          p <- plot_dlm_outcome(
+            data_one,
+            y_var = "log_or",
+            ymin_var = "log_or_conf.low",
+            ymax_var = "log_or_conf.high",
+            ref_line = 0,
+            y_label = "log(OR) (95% CI)",
+            panel_label = panel_labels[dep],
+            show_legend = (i == 1)
+          )
+          plots_logit_log[[i]] <- p
+        } else {
+          plots_logit_log[[i]] <- NULL
+        }
       }
-    }
 
-    plots_logit_log <- plots_logit_log[!sapply(plots_logit_log, is.null)]
-    if (length(plots_logit_log) > 0) {
-      fig_logit_log <- ggpubr::ggarrange(
-        plotlist = plots_logit_log,
-        ncol = 2,
-        nrow = 4,
-        align = "hv"
-      )
-      list_log_scale[[paste0("logit_", cont, "_", tp)]] <- fig_logit_log
-
-      outfile <- sprintf("03_Output/DLM/Plots_logit/OR_%s_%s.png", cont, tp)
-      dir.create(dirname(outfile), recursive = TRUE, showWarnings = FALSE)
-      ggplot2::ggsave(outfile,
-        plot = fig_logit_log,
-        res = 300,
-        width = 20,
-        height = 24,
-        units = "cm",
-        device = ragg::agg_png
-      )
-      message("Saved: ", outfile)
-    }
-
-    # --- Logit: OR ---
-    plots_logit_or <- list()
-    for (i in seq_along(outcomes_order)) {
-      dep <- outcomes_order[i]
-      key <- paste(dep, cont, tp, sep = "_")
-      data_one <- results_logit[[key]]
-      if (!is.null(data_one) && nrow(data_one) > 0) {
-        p <- plot_dlm_outcome(
-          data_one,
-          y_var = "estimate",
-          ymin_var = "conf.low",
-          ymax_var = "conf.high",
-          ref_line = 1,
-          y_label = "OR (95% CI)",
-          panel_label = panel_labels[dep],
-          show_legend = (i == 1)
+      plots_logit_log <- plots_logit_log[!sapply(plots_logit_log, is.null)]
+      if (length(plots_logit_log) > 0) {
+        fig_logit_log <- ggpubr::ggarrange(
+          plotlist = plots_logit_log,
+          ncol = 2,
+          nrow = 4,
+          align = "hv"
         )
-        plots_logit_or[[i]] <- p
-      } else {
-        plots_logit_or[[i]] <- NULL
-      }
-    }
+        list_log_scale[[paste0("logit_", cont, "_", tp, "_", scale)]] <- fig_logit_log
 
-    plots_logit_or <- plots_logit_or[!sapply(plots_logit_or, is.null)]
-    if (length(plots_logit_or) > 0) {
-      fig_logit_or <- ggpubr::ggarrange(
-        plotlist = plots_logit_or,
-        ncol = 2,
-        nrow = 4,
-        align = "hv"
-      )
-      list_ratio_scale[[paste0("logit_", cont, "_", tp)]] <- fig_logit_or
-
-      outfile <- sprintf("03_Output/DLM/Plots_logit/OR_%s_%s_ratio.png", cont, tp)
-      ggplot2::ggsave(outfile,
-        plot = fig_logit_or,
-        res = 300,
-        width = 20,
-        height = 24,
-        units = "cm",
-        device = ragg::agg_png
-      )
-      message("Saved: ", outfile)
-    }
-
-    # --- Cox: log(HR) ---
-    plots_cox_log <- list()
-    for (i in seq_along(outcomes_order)) {
-      dep <- outcomes_order[i]
-      key <- paste(dep, cont, tp, sep = "_")
-      data_one <- results_cox[[key]]
-      if (!is.null(data_one) && nrow(data_one) > 0) {
-        data_one <- ensure_log_cols(data_one, "log_hr", "log_hr_conf.low", "log_hr_conf.high")
-        p <- plot_dlm_outcome(
-          data_one,
-          y_var = "log_hr",
-          ymin_var = "log_hr_conf.low",
-          ymax_var = "log_hr_conf.high",
-          ref_line = 0,
-          y_label = "log(HR) (95% CI)",
-          panel_label = panel_labels[dep],
-          show_legend = (i == 1)
+        outfile <- sprintf("03_Output/DLM/Plots_logit/OR_%s_%s%s.png", cont, tp, sfx)
+        dir.create(dirname(outfile), recursive = TRUE, showWarnings = FALSE)
+        ggplot2::ggsave(outfile,
+          plot = fig_logit_log,
+          res = 300,
+          width = 20,
+          height = 24,
+          units = "cm",
+          device = ragg::agg_png
         )
-        plots_cox_log[[i]] <- p
-      } else {
-        plots_cox_log[[i]] <- NULL
+        message("Saved: ", outfile)
       }
-    }
 
-    plots_cox_log <- plots_cox_log[!sapply(plots_cox_log, is.null)]
-    if (length(plots_cox_log) > 0) {
-      fig_cox_log <- ggpubr::ggarrange(
-        plotlist = plots_cox_log,
-        ncol = 2,
-        nrow = 4,
-        align = "hv"
-      )
-      list_log_scale[[paste0("cox_", cont, "_", tp)]] <- fig_cox_log
+      # --- Logit: OR ---
+      plots_logit_or <- list()
+      for (i in seq_along(outcomes_order)) {
+        dep <- outcomes_order[i]
+        data_one <- get_result(results_logit, dep, cont, tp, scale)
+        if (!is.null(data_one) && nrow(data_one) > 0) {
+          p <- plot_dlm_outcome(
+            data_one,
+            y_var = "estimate",
+            ymin_var = "conf.low",
+            ymax_var = "conf.high",
+            ref_line = 1,
+            y_label = "OR (95% CI)",
+            panel_label = panel_labels[dep],
+            show_legend = (i == 1)
+          )
+          plots_logit_or[[i]] <- p
+        } else {
+          plots_logit_or[[i]] <- NULL
+        }
+      }
 
-      outfile <- sprintf("03_Output/DLM/Plots_cox/HR_%s_%s.png", cont, tp)
-      dir.create(dirname(outfile), recursive = TRUE, showWarnings = FALSE)
-      ggplot2::ggsave(outfile,
-        plot = fig_cox_log,
-        res = 300,
-        width = 20,
-        height = 24,
-        units = "cm",
-        device = ragg::agg_png
-      )
-      message("Saved: ", outfile)
-    }
-
-    # --- Cox: HR ---
-    plots_cox_hr <- list()
-    for (i in seq_along(outcomes_order)) {
-      dep <- outcomes_order[i]
-      key <- paste(dep, cont, tp, sep = "_")
-      data_one <- results_cox[[key]]
-      if (!is.null(data_one) && nrow(data_one) > 0) {
-        p <- plot_dlm_outcome(
-          data_one,
-          y_var = "estimate",
-          ymin_var = "conf.low",
-          ymax_var = "conf.high",
-          ref_line = 1,
-          y_label = "HR (95% CI)",
-          panel_label = panel_labels[dep],
-          show_legend = (i == 1)
+      plots_logit_or <- plots_logit_or[!sapply(plots_logit_or, is.null)]
+      if (length(plots_logit_or) > 0) {
+        fig_logit_or <- ggpubr::ggarrange(
+          plotlist = plots_logit_or,
+          ncol = 2,
+          nrow = 4,
+          align = "hv"
         )
-        plots_cox_hr[[i]] <- p
-      } else {
-        plots_cox_hr[[i]] <- NULL
+        list_ratio_scale[[paste0("logit_", cont, "_", tp, "_", scale)]] <- fig_logit_or
+
+        outfile <- sprintf("03_Output/DLM/Plots_logit/OR_%s_%s_ratio%s.png", cont, tp, sfx)
+        ggplot2::ggsave(outfile,
+          plot = fig_logit_or,
+          res = 300,
+          width = 20,
+          height = 24,
+          units = "cm",
+          device = ragg::agg_png
+        )
+        message("Saved: ", outfile)
       }
-    }
 
-    plots_cox_hr <- plots_cox_hr[!sapply(plots_cox_hr, is.null)]
-    if (length(plots_cox_hr) > 0) {
-      fig_cox_hr <- ggpubr::ggarrange(
-        plotlist = plots_cox_hr,
-        ncol = 2,
-        nrow = 4,
-        align = "hv"
-      )
-      list_ratio_scale[[paste0("cox_", cont, "_", tp)]] <- fig_cox_hr
+      # --- Cox: log(HR) ---
+      plots_cox_log <- list()
+      for (i in seq_along(outcomes_order)) {
+        dep <- outcomes_order[i]
+        data_one <- get_result(results_cox, dep, cont, tp, scale)
+        if (!is.null(data_one) && nrow(data_one) > 0) {
+          data_one <- ensure_log_cols(data_one, "log_hr", "log_hr_conf.low", "log_hr_conf.high")
+          p <- plot_dlm_outcome(
+            data_one,
+            y_var = "log_hr",
+            ymin_var = "log_hr_conf.low",
+            ymax_var = "log_hr_conf.high",
+            ref_line = 0,
+            y_label = "log(HR) (95% CI)",
+            panel_label = panel_labels[dep],
+            show_legend = (i == 1)
+          )
+          plots_cox_log[[i]] <- p
+        } else {
+          plots_cox_log[[i]] <- NULL
+        }
+      }
 
-      outfile <- sprintf("03_Output/DLM/Plots_cox/HR_%s_%s_ratio.png", cont, tp)
-      ggplot2::ggsave(outfile,
-        plot = fig_cox_hr,
-        res = 300,
-        width = 20,
-        height = 24,
-        units = "cm",
-        device = ragg::agg_png
-      )
-      message("Saved: ", outfile)
+      plots_cox_log <- plots_cox_log[!sapply(plots_cox_log, is.null)]
+      if (length(plots_cox_log) > 0) {
+        fig_cox_log <- ggpubr::ggarrange(
+          plotlist = plots_cox_log,
+          ncol = 2,
+          nrow = 4,
+          align = "hv"
+        )
+        list_log_scale[[paste0("cox_", cont, "_", tp, "_", scale)]] <- fig_cox_log
+
+        outfile <- sprintf("03_Output/DLM/Plots_cox/HR_%s_%s%s.png", cont, tp, sfx)
+        dir.create(dirname(outfile), recursive = TRUE, showWarnings = FALSE)
+        ggplot2::ggsave(outfile,
+          plot = fig_cox_log,
+          res = 300,
+          width = 20,
+          height = 24,
+          units = "cm",
+          device = ragg::agg_png
+        )
+        message("Saved: ", outfile)
+      }
+
+      # --- Cox: HR ---
+      plots_cox_hr <- list()
+      for (i in seq_along(outcomes_order)) {
+        dep <- outcomes_order[i]
+        data_one <- get_result(results_cox, dep, cont, tp, scale)
+        if (!is.null(data_one) && nrow(data_one) > 0) {
+          p <- plot_dlm_outcome(
+            data_one,
+            y_var = "estimate",
+            ymin_var = "conf.low",
+            ymax_var = "conf.high",
+            ref_line = 1,
+            y_label = "HR (95% CI)",
+            panel_label = panel_labels[dep],
+            show_legend = (i == 1)
+          )
+          plots_cox_hr[[i]] <- p
+        } else {
+          plots_cox_hr[[i]] <- NULL
+        }
+      }
+
+      plots_cox_hr <- plots_cox_hr[!sapply(plots_cox_hr, is.null)]
+      if (length(plots_cox_hr) > 0) {
+        fig_cox_hr <- ggpubr::ggarrange(
+          plotlist = plots_cox_hr,
+          ncol = 2,
+          nrow = 4,
+          align = "hv"
+        )
+        list_ratio_scale[[paste0("cox_", cont, "_", tp, "_", scale)]] <- fig_cox_hr
+
+        outfile <- sprintf("03_Output/DLM/Plots_cox/HR_%s_%s_ratio%s.png", cont, tp, sfx)
+        ggplot2::ggsave(outfile,
+          plot = fig_cox_hr,
+          res = 300,
+          width = 20,
+          height = 24,
+          units = "cm",
+          device = ragg::agg_png
+        )
+        message("Saved: ", outfile)
+      }
     }
   }
 }

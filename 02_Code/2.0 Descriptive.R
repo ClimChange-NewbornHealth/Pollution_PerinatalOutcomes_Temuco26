@@ -762,15 +762,26 @@ limits_cs <- get_map_limits(data_map_cs)
 limits_sp <- get_map_limits(data_map_sp)
 
 # Plot one contaminant row (4 maps: T1, T2, T3, Overall)
-plot_map_row <- function(data_map, limits_df, palette) {
+# map_base: ggmap or SpatRaster object for base layer; NULL for no base
+plot_map_row <- function(data_map, limits_df, palette, map_base = NULL) {
   cont <- as.character(unique(data_map$contaminant))
   lims <- limits_df |> filter(contaminant == cont)
   r_min <- lims$min_val
   r_max <- lims$max_val
 
-  ggplot(data_map) +
-    geom_sf(aes(color = value), size = 0.2, alpha = 0.8) +
-    scale_color_gradientn(
+  if (!is.null(map_base) && inherits(map_base, "ggmap")) {
+    p <- ggmap(map_base) +
+      geom_sf(data = data_map, aes(color = value), size = 0.5, alpha = 0.85, inherit.aes = FALSE)
+  } else if (!is.null(map_base) && inherits(map_base, "SpatRaster") && requireNamespace("tidyterra", quietly = TRUE)) {
+    p <- ggplot() +
+      tidyterra::geom_spatraster_rgb(data = map_base) +
+      geom_sf(data = data_map, aes(color = value), size = 0.5, alpha = 0.85)
+  } else {
+    p <- ggplot(data_map) +
+      geom_sf(aes(color = value), size = 0.2, alpha = 0.8)
+  }
+  p +
+  scale_color_gradientn(
       colors = palette,
       limits = c(r_min, r_max),
       name = NULL,
@@ -790,6 +801,7 @@ plot_map_row <- function(data_map, limits_df, palette) {
     theme_light(base_size = 9) +
     theme(
       panel.grid = element_blank(),
+      axis.title = element_blank(),
       legend.position = "top",
       legend.title = element_blank(),
       legend.text = element_text(size = 7),
@@ -805,7 +817,7 @@ plot_map_row <- function(data_map, limits_df, palette) {
 }
 
 # Build map figures: CS and SP separately (4 cols x 3 rows)
-build_map_figure <- function(data_map, limits_df) {
+build_map_figure <- function(data_map, limits_df, map_base = NULL) {
   plots_list <- list()
   for (cont in c("PM2.5", "Levoglucosan", "K")) {
     dat <- filter(data_map, contaminant == cont)
@@ -816,7 +828,7 @@ build_map_figure <- function(data_map, limits_df) {
       "K" = palette_K,
       palette_K
     )
-    plots_list[[cont]] <- plot_map_row(dat, limits_df, pal)
+    plots_list[[cont]] <- plot_map_row(dat, limits_df, pal, map_base = map_base)
   }
 
   ggpubr::ggarrange(
@@ -830,9 +842,7 @@ build_map_figure <- function(data_map, limits_df) {
 }
 
 fig_maps_cs <- build_map_figure(data_map_cs, limits_cs)
-fig_maps_cs
 fig_maps_sp <- build_map_figure(data_map_sp, limits_sp)
-fig_maps_sp
 
 ggsave(
   paste0(outfile, "/Maps_Exposure_cs.png"),
@@ -854,51 +864,70 @@ ggsave(
   device = ragg::agg_png
 )
 
+## 9. Base map download (Temuco - Padre las Casas) ----
 
-# Base map: Temuco - Padre las Casas ----
-# Extraction of the base map from Stadia Maps (better definition)
 bbox_data <- st_bbox(data_geo_wgs)
-# Padding ~8% for visual context
 pad_x <- (bbox_data["xmax"] - bbox_data["xmin"]) * 0.08
 pad_y <- (bbox_data["ymax"] - bbox_data["ymin"]) * 0.08
-# Explicit coordinates: left (west), bottom (south), right (east), top (north)
 bbox <- c(
   left   = as.numeric(bbox_data["xmin"] - pad_x),
   bottom = as.numeric(bbox_data["ymin"] - pad_y),
   right  = as.numeric(bbox_data["xmax"] + pad_x),
   top    = as.numeric(bbox_data["ymax"] + pad_y)
 )
-
-# Try zoom from highest to lowest (zoom 14 = max urban detail)
-mapa_base_temuco <- NULL
+map_base_temuco <- NULL
 for (z in c(14, 13, 12, 11, 10)) {
-  mapa_base_temuco <- tryCatch(
+  map_base_temuco <- tryCatch(
     get_stadiamap(bbox, zoom = z, maptype = "stamen_toner_lite"),
     error = function(e) NULL
   )
-  if (!is.null(mapa_base_temuco)) {
+  if (!is.null(map_base_temuco)) {
     message("Stadia Maps: zoom ", z, " OK")
     break
   }
 }
-
-if (is.null(mapa_base_temuco)) {
-  message("get_stadiamap failed at all zoom levels, using maptiles")
+if (is.null(map_base_temuco)) {
+  message("get_stadiamap failed, using maptiles")
   if (requireNamespace("maptiles", quietly = TRUE)) {
     library(maptiles)
-    mapa_base_temuco <- get_tiles(data_geo_wgs, provider = "OpenStreetMap", zoom = 15, crop = TRUE)
+    map_base_temuco <- get_tiles(data_geo_wgs, provider = "OpenStreetMap", zoom = 15, crop = TRUE)
   }
 }
 
-# Save with the max resolution 
-if (inherits(mapa_base_temuco, "SpatRaster")) {
-  png(paste0(outfile, "/Mapa_base_Temuco_PadreLasCasas.png"), width = 35, height = 35, units = "cm", res = 600)
-  terra::plotRGB(mapa_base_temuco)
-  dev.off()
-} else {
-  p <- ggmap(mapa_base_temuco)
-  ggsave(paste0(outfile, "/Mapa_base_Temuco_PadreLasCasas.png"), plot = p, width = 35, height = 35, units = "cm", dpi = 600, device = ragg::agg_png)
+# Save standalone base map (optional reference)
+if (!is.null(map_base_temuco)) {
+  if (inherits(map_base_temuco, "SpatRaster")) {
+    png(paste0(outfile, "/Map_base_Temuco_PadreLasCasas.png"), width = 35, height = 35, units = "cm", res = 600)
+    terra::plotRGB(map_base_temuco)
+    dev.off()
+  } else {
+    p <- ggmap(map_base_temuco)
+    ggsave(paste0(outfile, "/Map_base_Temuco_PadreLasCasas.png"), plot = p, width = 35, height = 35, units = "cm", dpi = 600, device = ragg::agg_png)
+  }
 }
 
-# Maps exposure with mapbase Temuco - Padre las Casas ----
+## 10. Maps exposure with base map ----
 
+fig_maps_cs_basemap <- build_map_figure(data_map_cs, limits_cs, map_base = map_base_temuco)
+fig_maps_sp_basemap <- build_map_figure(data_map_sp, limits_sp, map_base = map_base_temuco)
+
+# Higher dpi for basemap figures to preserve raster quality in panels
+ggsave(
+  paste0(outfile, "/Maps_Exposure_cs_basemap.png"),
+  plot = fig_maps_cs_basemap,
+  width = 30,
+  height = 20,
+  units = "cm",
+  dpi = 600,
+  device = ragg::agg_png
+)
+
+ggsave(
+  paste0(outfile, "/Maps_Exposure_sp_basemap.png"),
+  plot = fig_maps_sp_basemap,
+  width = 30,
+  height = 20,
+  units = "cm",
+  dpi = 600,
+  device = ragg::agg_png
+)

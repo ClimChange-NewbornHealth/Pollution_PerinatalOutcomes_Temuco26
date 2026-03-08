@@ -34,5 +34,6 @@ install_load(c("rio",
                "ggpubr",
                "ggplot2", 
                "sf", 
-               "ggmap"
+               "ggmap", 
+               "maptiles"
                ))

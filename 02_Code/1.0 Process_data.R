@@ -43,7 +43,18 @@ glimpse(data)
 data <- data |> 
   mutate(
     education = factor(estudios2, labels = c("None or primary", "Secondary", "Higher")),
-    health_insurance = factor(prevision2, labels = c("Public", "Private")), 
+    health_insurance = as.numeric(prevision),
+    health_insurance = if_else(health_insurance %in% c(7, 8), 6, health_insurance),
+    health_insurance = factor(health_insurance, 
+        labels = c(
+          "FONASA A",
+          "FONASA B",
+          "FONASA C",
+          "FONASA D",
+          "ISAPRE",
+          "Other"
+        )), 
+    health_insurance_aux = factor(prevision2, labels = c("Public", "Private")), 
     job = factor(job, labels = c("Unemployed", "Employed")),
     first_birth = if_else(para==0, 1, 0), 
     first_birth = factor(first_birth, labels = c("No", "Yes"))

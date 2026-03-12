@@ -230,7 +230,7 @@ for (scale in exposure_scales) {
     }
   }
 }
-toc() #  3944,692 sec elapsed ~65 min approx
+toc() #  1878,228 sec elapsed ~30-35 min approx
 
 ## 8 Save results ----
 

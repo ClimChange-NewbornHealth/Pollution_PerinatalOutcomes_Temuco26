@@ -919,3 +919,91 @@ ggsave(
   dpi = 300,
   device = ragg::agg_png
 )
+
+## 11. Density plots exposure by trimestre and overall ----
+
+# Build long-format data for density plots: period (T1,T2,T3,Overall) x contaminant x estimation (cs/sp)
+density_periods <- c("t1" = "T1", "t2" = "T2", "t3" = "T3", "tot" = "Overall")
+density_estimation <- c("cs" = "Fixed Site", "sp" = "LUR")
+
+density_data_list <- list()
+for (cont in contaminants) {
+  for (suf in c("_cs", "_sp")) {
+    vars <- paste0(c("t1", "t2", "t3", "tot"), "_", cont, suf)
+    dat <- data_des |>
+      select(all_of(vars)) |>
+      tidyr::pivot_longer(cols = everything(), names_to = "var", values_to = "value") |>
+      filter(!is.na(value)) |>
+      mutate(
+        period = factor(density_periods[sub("_.*", "", var)], levels = c("T1", "T2", "T3", "Overall")),
+        contaminant = factor(contaminant_labels[cont], levels = contaminant_labels),
+        estimation = factor(density_estimation[substr(suf, 2, 3)], levels = c("Fixed Site", "LUR"))
+      )
+    density_data_list[[paste(cont, suf, sep = "")]] <- dat
+  }
+}
+density_data <- bind_rows(density_data_list)
+
+# Colors per contaminant (from map palettes) - one color per period for overlay
+# PM2.5: green->yellow->orange->red; Levo: light orange->dark orange; K: light purple->dark
+density_colors <- list(
+  "PM2.5" = c("T1" = "#00E400", "T2" = "#FFFF00", "T3" = "#FF7E00", "Overall" = "#FF0000"),
+  "Levoglucosan" = c("T1" = "#FFF3E0", "T2" = "#FFB74D", "T3" = "#FF9800", "Overall" = "#E65100"),
+  "K" = c("T1" = "#E8DAEF", "T2" = "#9B59B6", "T3" = "#5B2C6F", "Overall" = "#1A0A1A")
+)
+# Build 3 plots (one per contaminant), each with 2 rows (Fixed Site, LUR), combine in 3 columns
+# Alpha 0.5 for all densities; strip labels (Fixed Site, LUR) only in third column, horizontal
+density_plots_list <- list()
+for (cont in names(contaminant_labels)) {
+  cont_label <- contaminant_labels[cont]
+  dat <- density_data |> filter(contaminant == cont_label)
+  cols <- density_colors[[cont_label]]
+  fill_vals <- setNames(scales::alpha(cols, 0.3), names(cols))
+
+  strip_theme <- if (cont == "K") {
+    theme(strip.text.y = element_text(size = 10, color = "black", angle = 0))
+  } else {
+    theme(strip.text.y = element_blank())
+  }
+
+  p <- ggplot(dat, aes(x = value, color = period, fill = period)) +
+    geom_density(linewidth = 0.8, position = "identity") +
+    scale_color_manual(values = cols, name = NULL) +
+    scale_fill_manual(values = fill_vals, name = NULL) +
+    scale_x_continuous(labels = scales::label_number(decimal.mark = ".")) +
+    labs(x = NULL, y = NULL, title = cont_label) +
+    facet_grid(estimation ~ ., scales = "free") +
+    theme_light(base_size = 9) +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0, size = 10),
+      strip.background = element_rect(fill = "white", color = "gray95"),
+      legend.position = "bottom",
+      legend.text = element_text(size = 8),
+      axis.text = element_text(size = 8)
+    ) +
+    strip_theme
+  density_plots_list[[cont_label]] <- p
+}
+
+fig_density <- ggpubr::ggarrange(
+  plotlist = density_plots_list,
+  ncol = 3,
+  nrow = 1,
+  common.legend = FALSE,
+  legend = "bottom",
+  widths = rep(1, 3)
+)
+
+fig_density
+
+ggsave(
+  paste0(outfile, "/Density_exposure_by_period.png"),
+  plot = fig_density,
+  width = 30,
+  height = 12,
+  units = "cm",
+  res = 300,
+  device = ragg::agg_png
+)
+

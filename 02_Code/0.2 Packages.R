@@ -35,5 +35,9 @@ install_load(c("rio",
                "ggplot2", 
                "sf", 
                "ggmap", 
-               "maptiles"
+               "maptiles",
+               "ggspatial",
+               "terra",
+               "tidyr",
+               "tidyterra"
                ))

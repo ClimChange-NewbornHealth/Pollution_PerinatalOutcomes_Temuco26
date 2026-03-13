@@ -724,9 +724,16 @@ data_geo_we <- data_geo |>
   )
 data_geo_wgs <- st_transform(data_geo_we, 4326)
 
+# Fixed scales per contaminant (CS and SP)
+map_scale_limits <- list(
+  "PM2.5" = c(0, 340),
+  "Levoglucosan" = c(0, 2),
+  "K" = c(0, 4.2)
+)
+
 # Palettes per contaminant (low -> high)
 palette_PM25 <- c("#00E400", "#FFFF00", "#FF7E00", "#FF0000", "#8F3F97", "#7E0023")
-palette_Levo <- c("#FFFFFF", "#D4EDDA", "#28A745", "#1E5631", "#0D2818")
+palette_Levo <- c("#FFF3E0", "#FFE0B2", "#FFB74D", "#FF9800", "#E65100")  # Orange tones for contrast with river
 palette_K <- c("#FFFFFF", "#E8DAEF", "#9B59B6", "#5B2C6F", "#1A0A1A")
 
 # Period and contaminant labels
@@ -753,21 +760,20 @@ pivot_geo_long <- function(geo_sf, type_suffix) {
 data_map_cs <- pivot_geo_long(data_geo_wgs, "_cs")
 data_map_sp <- pivot_geo_long(data_geo_wgs, "_sp")
 
-# Unified limits per contaminant
-get_map_limits <- function(data_map) {
-  data_map |> group_by(contaminant) |> summarise(min_val = min(value, na.rm = TRUE), max_val = max(value, na.rm = TRUE), .groups = "drop")
-}
-
-limits_cs <- get_map_limits(data_map_cs)
-limits_sp <- get_map_limits(data_map_sp)
+# Zone labels: TEM (Temuco) above river, PLC (Padre las Casas) below river
+# Approximate positions in WGS84 (lon, lat)
+labels_zones <- data.frame(
+  lon = c(-72.59, -72.57),
+  lat = c(-38.72, -38.76),
+  label = c("TEM", "PLC")
+)
 
 # Plot one contaminant row (4 maps: T1, T2, T3, Overall)
 # map_base: ggmap or SpatRaster object for base layer; NULL for no base
-plot_map_row <- function(data_map, limits_df, palette, map_base = NULL) {
+plot_map_row <- function(data_map, palette, map_base = NULL) {
   cont <- as.character(unique(data_map$contaminant))
-  lims <- limits_df |> filter(contaminant == cont)
-  r_min <- lims$min_val
-  r_max <- lims$max_val
+  r_min <- map_scale_limits[[cont]][1]
+  r_max <- map_scale_limits[[cont]][2]
 
   if (!is.null(map_base) && inherits(map_base, "ggmap")) {
     p <- ggmap(map_base) +
@@ -781,43 +787,46 @@ plot_map_row <- function(data_map, limits_df, palette, map_base = NULL) {
       geom_sf(aes(color = value), size = 0.2, alpha = 0.8)
   }
   p +
+  geom_text(data = labels_zones, aes(x = lon, y = lat, label = label), inherit.aes = FALSE, size = 2.5, fontface = "bold", color = "black") +
+  ggspatial::annotation_scale(location = "bl", width_hint = 0.18, height = unit(0.15, "cm"), text_cex = 0.75) +
+  ggspatial::annotation_north_arrow(location = "tr", height = unit(0.75, "cm"), width = unit(0.5, "cm"), pad_x = unit(0.2, "cm"), pad_y = unit(0.2, "cm"), style = ggspatial::north_arrow_fancy_orienteering()) +
   scale_color_gradientn(
-      colors = palette,
-      limits = c(r_min, r_max),
-      name = NULL,
-      na.value = "grey90",
-      breaks = seq(r_min, r_max, length.out = 5),
-      labels = function(x) format(round(x, 1), nsmall = 1, decimal.mark = "."),
-      guide = guide_colorbar(
-        barwidth = 12,
-        barheight = 0.4,
-        nbin = 5,
-        label.position = "bottom",
-        title = NULL
-      )
-    ) +
-    facet_grid(contaminant ~ period) +
-    #labs(title = cont) +
-    theme_light(base_size = 9) +
-    theme(
-      panel.grid = element_blank(),
-      axis.title = element_blank(),
-      legend.position = "top",
-      legend.title = element_blank(),
-      legend.text = element_text(size = 7),
-      strip.text.x = element_text(size = 10 , color = "black"),
-      strip.text.y = element_text(angle = 0, size = 10, color = "black", face = "bold"),
-      strip.placement = "outside",
-      strip.background = element_rect(fill = "white", color = "white"),
-      axis.text = element_blank(),
-      axis.ticks = element_blank(),
-      plot.title = element_text(hjust = 0, face = "bold", size = 10),
-      plot.margin = margin(1, 1, 1, 1, "mm")
+    colors = palette,
+    limits = c(r_min, r_max),
+    name = NULL,
+    na.value = "grey90",
+    breaks = seq(r_min, r_max, length.out = 5),
+    labels = function(x) format(round(x, 1), nsmall = 1, decimal.mark = "."),
+    guide = guide_colorbar(
+      barwidth = 12,
+      barheight = 0.4,
+      nbin = 5,
+      label.position = "bottom",
+      title = NULL
     )
+  ) +
+  coord_sf(crs = 4326, default_crs = 4326, expand = FALSE) +
+  facet_grid(contaminant ~ period) +
+  theme_light(base_size = 9) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "top",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 7),
+    strip.text.x = element_text(size = 10, color = "black"),
+    strip.text.y = element_text(angle = 0, size = 10, color = "black", face = "bold"),
+    strip.placement = "outside",
+    strip.background = element_rect(fill = "white", color = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    plot.title = element_text(hjust = 0, face = "bold", size = 10),
+    plot.margin = margin(1, 1, 1, 1, "mm")
+  )
 }
 
 # Build map figures: CS and SP separately (4 cols x 3 rows)
-build_map_figure <- function(data_map, limits_df, map_base = NULL) {
+build_map_figure <- function(data_map, map_base = NULL) {
   plots_list <- list()
   for (cont in c("PM2.5", "Levoglucosan", "K")) {
     dat <- filter(data_map, contaminant == cont)
@@ -828,7 +837,7 @@ build_map_figure <- function(data_map, limits_df, map_base = NULL) {
       "K" = palette_K,
       palette_K
     )
-    plots_list[[cont]] <- plot_map_row(dat, limits_df, pal, map_base = map_base)
+    plots_list[[cont]] <- plot_map_row(dat, pal, map_base = map_base)
   }
 
   ggpubr::ggarrange(
@@ -841,8 +850,13 @@ build_map_figure <- function(data_map, limits_df, map_base = NULL) {
   )
 }
 
-fig_maps_cs <- build_map_figure(data_map_cs, limits_cs)
-fig_maps_sp <- build_map_figure(data_map_sp, limits_sp)
+fig_maps_cs <- build_map_figure(data_map_cs)
+
+fig_maps_cs
+
+fig_maps_sp <- build_map_figure(data_map_sp)
+
+fig_maps_sp
 
 ggsave(
   paste0(outfile, "/Maps_Exposure_cs.png"),
@@ -866,50 +880,24 @@ ggsave(
 
 ## 9. Base map download (Temuco - Padre las Casas) ----
 
-bbox_data <- st_bbox(data_geo_wgs)
-pad_x <- (bbox_data["xmax"] - bbox_data["xmin"]) * 0.08
-pad_y <- (bbox_data["ymax"] - bbox_data["ymin"]) * 0.08
-bbox <- c(
-  left   = as.numeric(bbox_data["xmin"] - pad_x),
-  bottom = as.numeric(bbox_data["ymin"] - pad_y),
-  right  = as.numeric(bbox_data["xmax"] + pad_x),
-  top    = as.numeric(bbox_data["ymax"] + pad_y)
-)
-map_base_temuco <- NULL
-for (z in c(14, 13, 12, 11, 10)) {
-  map_base_temuco <- tryCatch(
-    get_stadiamap(bbox, zoom = z, maptype = "stamen_toner_lite"),
-    error = function(e) NULL
-  )
-  if (!is.null(map_base_temuco)) {
-    message("Stadia Maps: zoom ", z, " OK")
-    break
-  }
-}
-if (is.null(map_base_temuco)) {
-  message("get_stadiamap failed, using maptiles")
-  if (requireNamespace("maptiles", quietly = TRUE)) {
-    library(maptiles)
-    map_base_temuco <- get_tiles(data_geo_wgs, provider = "OpenStreetMap", zoom = 15, crop = TRUE)
-  }
-}
+# Use maptiles (color) with best definition possible - zoom 16 for urban detail
+library(maptiles)
+map_base_temuco <- get_tiles(data_geo_wgs, provider = "OpenStreetMap", zoom = 16, crop = TRUE)
+message("Maptiles: OpenStreetMap zoom 16 OK")
 
 # Save standalone base map (optional reference)
-if (!is.null(map_base_temuco)) {
-  if (inherits(map_base_temuco, "SpatRaster")) {
-    png(paste0(outfile, "/Map_base_Temuco_PadreLasCasas.png"), width = 35, height = 35, units = "cm", res = 600)
-    terra::plotRGB(map_base_temuco)
-    dev.off()
-  } else {
-    p <- ggmap(map_base_temuco)
-    ggsave(paste0(outfile, "/Map_base_Temuco_PadreLasCasas.png"), plot = p, width = 35, height = 35, units = "cm", dpi = 600, device = ragg::agg_png)
-  }
-}
+png(paste0(outfile, "/Map_base_Temuco_PadreLasCasas.png"), width = 35, height = 35, units = "cm", res = 600)
+terra::plotRGB(map_base_temuco)
+dev.off()
+message("Saved: ", outfile, "/Map_base_Temuco_PadreLasCasas.png")
 
 ## 10. Maps exposure with base map ----
 
-fig_maps_cs_basemap <- build_map_figure(data_map_cs, limits_cs, map_base = map_base_temuco)
-fig_maps_sp_basemap <- build_map_figure(data_map_sp, limits_sp, map_base = map_base_temuco)
+fig_maps_cs_basemap <- build_map_figure(data_map_cs, map_base = map_base_temuco)
+fig_maps_cs_basemap 
+
+fig_maps_sp_basemap <- build_map_figure(data_map_sp, map_base = map_base_temuco)
+fig_maps_sp_basemap 
 
 # Higher dpi for basemap figures to preserve raster quality in panels
 ggsave(
@@ -918,7 +906,7 @@ ggsave(
   width = 30,
   height = 20,
   units = "cm",
-  dpi = 600,
+  dpi = 300,
   device = ragg::agg_png
 )
 
@@ -928,6 +916,6 @@ ggsave(
   width = 30,
   height = 20,
   units = "cm",
-  dpi = 600,
+  dpi = 300,
   device = ragg::agg_png
 )

@@ -27,27 +27,24 @@ exposure_scales <- if ("exposure_scales" %in% names(dlm_results)) dlm_results$ex
 prepare_plot_data_cox <- function(models_df) {
   models_df |>
     dplyr::filter(
-      (model_type == "single" & tiempo %in% c("tot", "w20")) |
+      (model_type == "single" & tiempo == "tot") |
         model_type == "t1_t2_t3"
     ) |>
     dplyr::arrange(dependent_var, contaminante, tipo, adjustment, model_type, term) |>
     dplyr::group_by(dependent_var, contaminante, tipo, adjustment, model_type, exposure_scale) |>
     dplyr::mutate(
       exposure = dplyr::case_when(
-        model_type == "single" & (stringr::str_detect(term, "tot_") | stringr::str_detect(term, "iqr_tot_"))  ~ "Overall",
-        model_type == "single" & (stringr::str_detect(term, "w20_") | stringr::str_detect(term, "iqr_w20_")) ~ "Week 20",
-        model_type == "t1_t2_t3" & dplyr::row_number() == 1 ~ "Trimester 1",
-        model_type == "t1_t2_t3" & dplyr::row_number() == 2 ~ "Trimester 2",
-        model_type == "t1_t2_t3" & dplyr::row_number() == 3 ~ "Trimester 3",
+        model_type == "t1_t2_t3" & dplyr::row_number() == 1 ~ "T1",
+        model_type == "t1_t2_t3" & dplyr::row_number() == 2 ~ "T2",
+        model_type == "t1_t2_t3" & dplyr::row_number() == 3 ~ "T3",
+        model_type == "single" & (stringr::str_detect(term, "tot_") | stringr::str_detect(term, "iqr_tot_")) ~ "Overall",
         TRUE ~ NA_character_
       )
     ) |>
     dplyr::ungroup() |>
     dplyr::filter(!is.na(exposure)) |>
     dplyr::mutate(
-      exposure = factor(exposure,
-        levels = c("Week 20", "Overall", "Trimester 1", "Trimester 2", "Trimester 3")
-      ),
+      exposure = factor(exposure, levels = c("T1", "T2", "T3", "Overall")),
       adjustment = factor(adjustment, levels = c("Unadjusted", "Adjusted"))
     )
 }
@@ -78,7 +75,8 @@ plot_cox_single <- function(data_one, y_var, ymin_var, ymax_var, ref_line, y_lab
   if (is.null(data_one) || nrow(data_one) == 0) return(NULL)
 
   pd <- position_dodge(width = 0.6)
-  rect_data <- data.frame(xmin = 0.5, xmax = 5.5, ymin = -Inf, ymax = Inf)
+  rect_t1t3 <- data.frame(xmin = 0.5, xmax = 3.5, ymin = -Inf, ymax = Inf)
+  rect_overall <- data.frame(xmin = 3.5, xmax = 4.5, ymin = -Inf, ymax = Inf)
 
   y_vals <- c(data_one[[y_var]], data_one[[ymin_var]], data_one[[ymax_var]])
   y_vals <- y_vals[is.finite(y_vals)]
@@ -91,7 +89,10 @@ plot_cox_single <- function(data_one, y_var, ymin_var, ymax_var, ref_line, y_lab
   y_limits <- c(ref_line - max_dist, ref_line + max_dist)
 
   ggplot(data_one, aes(y = .data[[y_var]], x = exposure, color = adjustment, shape = adjustment)) +
-    geom_rect(data = rect_data, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    geom_rect(data = rect_t1t3, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+      inherit.aes = FALSE, fill = "white"
+    ) +
+    geom_rect(data = rect_overall, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
       inherit.aes = FALSE, fill = "grey95", alpha = 0.7
     ) +
     geom_hline(yintercept = ref_line, linetype = "dashed", color = "grey50") +
@@ -128,7 +129,8 @@ plot_cox_multi_cont <- function(data_one, y_var, ymin_var, ymax_var, ref_line, y
   if (is.null(data_one) || nrow(data_one) == 0) return(NULL)
 
   pd <- position_dodge(width = 0.45)
-  rect_data <- data.frame(xmin = 0.5, xmax = 5.5, ymin = -Inf, ymax = Inf)
+  rect_t1t3 <- data.frame(xmin = 0.5, xmax = 3.5, ymin = -Inf, ymax = Inf)
+  rect_overall <- data.frame(xmin = 3.5, xmax = 4.5, ymin = -Inf, ymax = Inf)
 
   y_vals <- c(data_one[[y_var]], data_one[[ymin_var]], data_one[[ymax_var]])
   y_vals <- y_vals[is.finite(y_vals)]
@@ -142,7 +144,10 @@ plot_cox_multi_cont <- function(data_one, y_var, ymin_var, ymax_var, ref_line, y
   cont_colors <- c("PM25" = "#E41A1C", "Levo" = "#FF7F00", "K" = "#984EA3")
 
   ggplot(data_one, aes(y = .data[[y_var]], x = exposure, color = contaminante, shape = contaminante)) +
-    geom_rect(data = rect_data, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    geom_rect(data = rect_t1t3, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+      inherit.aes = FALSE, fill = "white"
+    ) +
+    geom_rect(data = rect_overall, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
       inherit.aes = FALSE, fill = "grey95", alpha = 0.7
     ) +
     geom_hline(yintercept = ref_line, linetype = "dashed", color = "grey50") +
@@ -276,7 +281,7 @@ outcomes_labels <- c(
   "birth_late_preterm"       = "Late preterm birth (34–36 weeks)"
 )
 
-tipo_labels <- c("cs" = "Fixed Site (CS)", "sp" = "LUR")
+tipo_labels <- c("cs" = "FS", "sp" = "LUR")
 cont_labels <- c("PM25" = "PM2.5", "Levo" = "Levoglucosan", "K" = "K")
 
 # Effect scale params: logHR vs HR

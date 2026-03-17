@@ -321,7 +321,7 @@ group_labels_des <- c(
 # Build descriptives: numeric = Mean (SD), categorical = XX.X% (n=XX)
 # Format with 1 decimal, period as separator
 format_pct <- function(pct, n) sprintf("%.1f%% (n=%d)", pct, n)
-format_mean_sd_des <- function(m, s) sprintf("%.1f (SD=%.1f)", m, s)
+format_mean_sd_des <- function(m, s) sprintf("%.1f (%.1f)", m, s)
 
 # Define row structure from full sample (all variables to describe by outcome)
 sexo_levels <- sort(unique(na.omit(as.character(table_des$sexo_rn))))

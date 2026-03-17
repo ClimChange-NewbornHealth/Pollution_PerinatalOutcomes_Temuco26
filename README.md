@@ -64,6 +64,36 @@ We conducted a population-based retrospective cohort study using:
 
 *To be updated upon completion of analysis.*
 
+### Main Results
+
+#### Spatial distribution of gestational exposure to air pollutants
+
+**Figure 1.** Gestational exposure to air pollutants based on fixed-site estimation: trimester-specific and overall spatial distribution, 2009–2016.
+
+![Maps_Exposure_cs](03_Output/Descriptives/Maps_Exposure_cs.png)
+
+*Note:* Exposure to air pollutants (PM₂.₅, levoglucosan, and potassium [K]) was estimated using fixed-site estimation. Panels display spatial distributions for each gestational trimester (T1, T2, T3) and overall pregnancy exposure. PM2.5 is expressed in µg/m³, while levoglucosan and K are presented in relative concentration units. TEM: Temuco and PLC: Padre Las Casas.
+
+**Figure 2.** Gestational exposure to air pollutants based on land-use regression: trimester-specific and overall spatial distribution, 2009–2016.
+
+![Maps_Exposure_sp](03_Output/Descriptives/Maps_Exposure_sp.png)
+
+*Note:* Exposure to air pollutants (PM₂.₅, levoglucosan, and potassium [K]) was estimated using land-use regression. Panels display spatial distributions for each gestational trimester (T1, T2, T3) and overall pregnancy exposure. PM2.5 is expressed in µg/m³, while levoglucosan and K are presented in relative concentration units. TEM: Temuco and PLC: Padre Las Casas.
+
+#### Associations between air pollution exposure and preterm birth
+
+**Figure 3.** Associations between gestational exposure to air pollutants and preterm birth.
+
+![Fig1_Cox_preterm_HR_iqr](03_Output/Fig_paper/Fig1_Cox_preterm_HR_iqr.png)
+
+*Note:* Hazard ratios (HR) and 95% confidence intervals (CI) were estimated using Cox regression models for PM2.5, levoglucosan, and potassium. Crude models are unadjusted; adjusted models control for maternal age, education, employment and health insurance, infant sex, year of birth, month of birth, and municipality. T1–T3 correspond to pregnancy trimesters 1–3; W20 represents exposure at gestational week 20; Overall represents average exposure across pregnancy. CS: Fixed-site; LUR: land-use regression model. Exposure scaled by IQR.
+
+**Figure 4.** Distributed lag model: associations between gestational exposure to air pollutants and preterm birth.
+
+![Fig2_DLM_preterm_HR_iqr](03_Output/Fig_paper/Fig2_DLM_preterm_HR_iqr.png)
+
+*Note:* Points represent effect estimates (HR) and 95% confidence intervals (CIs) from distributed lag models (DLMs) fitted using Cox regression. Each point reflects the association between exposure to air pollutants (PM2.5, levoglucosan, and potassium [K]) at a specific gestational week and the risk of the outcome, while simultaneously accounting for cumulative exposure from previous weeks. Cumulative exposure was modeled using an inverse decay weighting function (1/lag). Adjusted models control for maternal age, education, employment and health insurance, infant sex, year of birth, month of birth, and municipality. CS: Fixed-site; LUR: land-use regression model. Exposure scaled by IQR.
+
 ---
 
 ## R Code Structure

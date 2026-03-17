@@ -6,25 +6,25 @@
 [![GitHub top language](https://img.shields.io/github/languages/top/ClimChange-NewbornHealth/Pollution_PerinatalOutcomes_Temuco26)](https://github.com/ClimChange-NewbornHealth/Pollution_PerinatalOutcomes_Temuco26)
 [![GitHub License](https://img.shields.io/github/license/ClimChange-NewbornHealth/Pollution_PerinatalOutcomes_Temuco26)](https://github.com/ClimChange-NewbornHealth/Pollution_PerinatalOutcomes_Temuco26)
 
-## :moneybag: Funding
+## 💰 Funding
 
 **Fondecyt Nº 11240322**: Climate change and urban health: how air pollution, temperature, and city structure relate to preterm birth.
 
-## :busts_in_silhouette: Research Team
+## 👥 Research Team
 
-:mailbox_with_mail: **Estela Blanco** (<estela.blanco@uc.cl>) - **Principal Investigator**
+📬 **Estela Blanco** (<estela.blanco@uc.cl>) - **Principal Investigator**
 
-:mailbox_with_mail: **José Daniel Conejeros** (<jdconejeros@uc.cl>) - **Research Assistant / Repository Manager**
+📬 **José Daniel Conejeros** (<jdconejeros@uc.cl>) - **Research Assistant / Repository Manager**
 
-**Research Collaborators**: 
+**Research Collaborators**:
 
-## :pushpin: Publication
+## 📌 Publication
 
 *To be updated.*
 
 ---
 
-## :dart: Project Overview
+## 🎯 Project Overview
 
 ### Background
 
@@ -70,13 +70,13 @@ We conducted a population-based retrospective cohort study using:
 
 **Figure 1.** Gestational exposure to air pollutants based on fixed-site estimation: trimester-specific and overall spatial distribution, 2009–2016.
 
-![Maps_Exposure_cs](03_Output/Descriptives/Maps_Exposure_cs.png)
+![Maps_Exposure_cs](03_Output/Descriptives/Maps_Exposure_cs_basemap.png)
 
 *Note:* Exposure to air pollutants (PM₂.₅, levoglucosan, and potassium [K]) was estimated using fixed-site estimation. Panels display spatial distributions for each gestational trimester (T1, T2, T3) and overall pregnancy exposure. PM2.5 is expressed in µg/m³, while levoglucosan and K are presented in relative concentration units. TEM: Temuco and PLC: Padre Las Casas.
 
 **Figure 2.** Gestational exposure to air pollutants based on land-use regression: trimester-specific and overall spatial distribution, 2009–2016.
 
-![Maps_Exposure_sp](03_Output/Descriptives/Maps_Exposure_sp.png)
+![Maps_Exposure_sp](03_Output/Descriptives/Maps_Exposure_sp_basemap.png)
 
 *Note:* Exposure to air pollutants (PM₂.₅, levoglucosan, and potassium [K]) was estimated using land-use regression. Panels display spatial distributions for each gestational trimester (T1, T2, T3) and overall pregnancy exposure. PM2.5 is expressed in µg/m³, while levoglucosan and K are presented in relative concentration units. TEM: Temuco and PLC: Padre Las Casas.
 
@@ -126,13 +126,14 @@ We conducted a population-based retrospective cohort study using:
 
 ---
 
-## :chart_with_upwards_trend: Principal Findings
+## 📈 Principal Findings
 
 ### Exposure Models: Association Between Air Pollution and Perinatal Outcomes
 
 **Logistic models (OR)** and **Cox models (HR)** by pollutant (PM₂.₅, Levoglucosan, K) and spatial type (cs, sp). Results are produced in two exposure scales: **raw** (original units) and **IQR** (exposure / IQR).
 
 Outputs:
+
 - `03_Output/Models/Exposure_models_PO_logit_cox.xlsx` - OR and HR results (raw and IQR models)
 - `03_Output/Models/Tables/Tab_Exposure_PO.xlsx` - Formatted tables (raw)
 - `03_Output/Models/Tables/Tab_Exposure_PO_IQR.xlsx` - Formatted tables (IQR)
@@ -146,6 +147,7 @@ Outputs:
 **DLM** estimates the association between exposure at each gestational week (1–37) and perinatal outcomes, controlling for lagged exposure (weighted sum of past weeks). Results are produced in two exposure scales: **raw** and **IQR**.
 
 Outputs:
+
 - `03_Output/DLM/DLM_PO_results.RData` - Estimated coefficients and CIs (logit and Cox, raw and IQR)
 - `03_Output/DLM/Tab_DLM_PO.xlsx` - Excel tables (raw; one sheet per outcome–exposure; Week, OR, HR with 95% CI)
 - `03_Output/DLM/Tab_DLM_PO_IQR.xlsx` - Excel tables (IQR)
@@ -156,16 +158,17 @@ Outputs:
 
 ---
 
-## :file_folder: Data Availability
+## 📁 Data Availability
 
 ### Input Data
 
 1. **Birth and Exposure Data**: `01_Input/Data_full_sample_exposure.RData`
+
    - Perinatal outcomes linked to air pollution exposure during pregnancy
    - Variables: Gestational age, birth weight, maternal characteristics, exposure by week/trimester
    - See `01_Input/Data_dictionary_PO_pollution.md` for full variable descriptions
-
 2. **Analysis Dataset** (created by `1.0 Process_data.R`): `01_Input/Data_full_sample_exposure_analysis.RData`
+
    - Merged with covariates (education, health insurance, job, etc.)
    - Includes IQR-scaled exposure variables (`iqr_[window]_[pollutant]_[type]`)
 
@@ -177,7 +180,7 @@ Outputs:
 
 ---
 
-## :computer: Reproducibility
+## 💻 Reproducibility
 
 ### System Requirements
 
@@ -194,35 +197,36 @@ Outputs:
 The analysis pipeline follows this sequence:
 
 1. **Setup** (run first):
+
    ```r
    source("02_Code/0.1 Settings.R")
    source("02_Code/0.2 Packages.R")
    source("02_Code/0.3 Functions.R")
    source("02_Code/0.4 Functions_models.R")
    ```
-
 2. **Data Processing** (creates analysis dataset with IQR-scaled exposures):
+
    ```r
    source("02_Code/1.0 Process_data.R")
    ```
-
 3. **Descriptive Analysis**:
+
    ```r
    source("02_Code/2.0 Descriptive.R")
    ```
-
 4. **Exposure Models** (Logistic and Cox, raw + IQR):
+
    ```r
    source("02_Code/3.0 Exposure_PO_Models.R")
    ```
-
 5. **Exposure Tables and Plots** (raw + IQR):
+
    ```r
    source("02_Code/3.1 Exposure_PO_Plots_Models.R")
    source("02_Code/3.2 Exposure_PO_Tables_Models.R")
    ```
-
 6. **Distributed Lag Models (DLM)** (raw + IQR):
+
    ```r
    source("02_Code/4.0 DLM_PO_estimation.R")   # Estimation (~15–20 min for raw + IQR)
    source("02_Code/4.1 DLM_PO_tables_plots.R") # Tables and figures
@@ -239,7 +243,7 @@ The analysis pipeline follows this sequence:
 
 ---
 
-## :open_book: Codebook
+## 📖 Codebook
 
 See `01_Input/Data_dictionary_PO_pollution.md` for a detailed data dictionary. Summary of key variables:
 
@@ -275,7 +279,7 @@ See `01_Input/Data_dictionary_PO_pollution.md` for a detailed data dictionary. S
 
 ---
 
-## :microscope: Methods Detail
+## 🔬 Methods Detail
 
 ### Exposure Windows
 
@@ -296,7 +300,7 @@ See `01_Input/Data_dictionary_PO_pollution.md` for a detailed data dictionary. S
 
 ---
 
-## :file_cabinet: Repository Structure
+## 🗄 Repository Structure
 
 ```
 Pollution_PerinatalOutcomes_Temuco26/
@@ -341,7 +345,7 @@ Pollution_PerinatalOutcomes_Temuco26/
 
 ---
 
-## :warning: Important Notes
+## ⚠️ Important Notes
 
 ### Data Privacy
 
@@ -353,23 +357,25 @@ Temuco–Padre Las Casas is known for high wintertime air pollution from residen
 
 ---
 
-## :email: Contact
+## ✉️ Contact
 
 For questions about the code or methodology:
+
 - **Estela Blanco**: <estela.blanco@uc.cl>
 - **José Daniel Conejeros**: <jdconejeros@uc.cl>
 
 For data access inquiries:
+
 - **Estela Blanco**: <estela.blanco@uc.cl>
 
 ---
 
-## :page_facing_up: License
+## 📄 License
 
 This project is licensed under the terms specified in the LICENSE file.
 
 ---
 
-## :handshake: Acknowledgments
+## 🤝 Acknowledgments
 
 This research was supported by Fondecyt de Iniciación en Investigación Nº 11240322.

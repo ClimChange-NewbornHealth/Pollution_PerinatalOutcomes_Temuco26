@@ -55,6 +55,7 @@ rsconnect/
 01_Input/Data_IQR_ref_values.xlsx
 01_Input/new_covariates_base_eb_emod.xlsx
 01_Input/Codebook MEQ 181002.docx
+01_Input/data_1992_2020.RData
 
 # Models results
 03_Output/Models/Plots_compiled_figures.RData

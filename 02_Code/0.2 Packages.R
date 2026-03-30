@@ -16,6 +16,8 @@ install_load <- function(packages){
 install_load(c("rio", 
                "data.table",
                "tidyverse",
+               "survey",
+               "broom",
                "chilemapas",
                "future",
                "furrr",

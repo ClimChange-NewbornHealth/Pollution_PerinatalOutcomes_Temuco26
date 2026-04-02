@@ -25,7 +25,8 @@ data_model <- data |>
         ) |> 
   select(-"birth_extremely_preterm", -"birth_term", -"birth_posterm") |> 
   filter(!is.na(lbw | tlbw | sga)) |> 
-  filter(edad_gest >= 28)
+  filter(edad_gest >= 28) |> 
+  mutate(tstart = 27)
 
 glimpse(data_model)
 summary(data_model)
@@ -215,7 +216,8 @@ results_list_cox <- future_lapply(seq_len(nrow(combinations)), function(i) {
     tipo = tipo,
     model_type = model_type,
     data = data_model,
-    adjustment = adj
+    adjustment = adj,
+    time_start = "tstart"
   )
   res$exposure_scale <- exp_scale
   res
@@ -264,13 +266,13 @@ AIC(m1)
 BIC(m1)
 broom::tidy(m1, conf.int = TRUE, exponentiate = TRUE)
 
-m2 <- survival::coxph(Surv(edad_gest, birth_preterm)  ~ 
+m2 <- survival::coxph(Surv(tstart, edad_gest, birth_preterm)  ~ 
   t1_PM25_cs + t2_PM25_cs + t3_PM25_cs +
   edad_madre + education + health_insurance + job + first_birth +
   sexo_rn + a_nac + mes_nac + comuna, 
   data = data_model)
 
-m2 <- survival::coxph(Surv(edad_gest, birth_preterm)  ~ 
+m2 <- survival::coxph(Surv(tstart, edad_gest, birth_preterm)  ~ 
   iqr_t1_PM25_cs + iqr_t2_PM25_cs + iqr_t3_PM25_cs +
   edad_madre + education + health_insurance + job + first_birth +
   sexo_rn + a_nac + mes_nac + comuna, 

@@ -26,6 +26,7 @@ data_model <- data |>
   select(-"birth_extremely_preterm", -"birth_term", -"birth_posterm") |>
   filter(!is.na(lbw | tlbw | sga)) |>
   filter(edad_gest >= 28) |>
+  mutate(tstart = 27) |>
   filter(!is.na(cesarea))
 
 ## 3. Define grid: Cox models for birth_preterm only ----
@@ -122,7 +123,8 @@ for (ces_val in cesarea_levels) {
       tipo = tipo,
       model_type = model_type,
       data = data_sub,
-      adjustment = adj
+      adjustment = adj,
+      time_start = "tstart"
     )
     res$exposure_scale <- exp_scale
     res$cesarea <- ces_val

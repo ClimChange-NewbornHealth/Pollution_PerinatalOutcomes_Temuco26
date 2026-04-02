@@ -27,7 +27,8 @@ data <- data |>
         ) |>
   select(-"birth_extremely_preterm", -"birth_term", -"birth_posterm") |>
   filter(!is.na(lbw | tlbw | sga)) |>
-  filter(edad_gest >= 28)
+  filter(edad_gest >= 28) |>
+  mutate(tstart = 27)
 
 # Reorder w20 columns after w19 (if present)
 if ("w20_PM25_cs" %in% names(data)) {
@@ -156,7 +157,7 @@ for (scale in exposure_scales) {
         select(-contaminante, -tipo)
 
       # Merge with outcomes and controls (one row per idbase)
-      base_cols <- c("idbase", "edad_gest", dependent_vars, control_vars)
+      base_cols <- c("idbase", "edad_gest", "tstart", dependent_vars, control_vars)
       data_model <- data |>
         select(any_of(base_cols)) |>
         distinct(idbase, .keep_all = TRUE) |>
@@ -217,7 +218,8 @@ for (scale in exposure_scales) {
             tipo = tipo_val,
             model_type = "t1_t2_t3",
             data = data_model,
-            adjustment = "Adjusted"
+            adjustment = "Adjusted",
+            time_start = "tstart"
           )
           tbl_cox <- tbl_cox |> filter(term == exp_var)
           if (nrow(tbl_cox) > 0) {

@@ -41,14 +41,16 @@ data_model <- data |>
   ) |>
   dplyr::select(-dplyr::any_of(c("birth_extremely_preterm", "birth_term", "birth_posterm"))) |>
   dplyr::filter(!is.na(lbw | tlbw | sga)) |>
-  dplyr::filter(edad_gest >= 28)
+  dplyr::filter(edad_gest >= 28) |>
+  dplyr::mutate(tstart = 27)
 
 glimpse(data_model)
 summary(data_model)
 
 ## 4 Grilla de modelos ----
 dependent_vars <- c(
-  colnames(data_model)[stringr::str_detect(colnames(data_model), pattern = "birth_.*")]
+  colnames(data_model)[stringr::str_detect(colnames(data_model), pattern = "birth_.*")],
+  "lbw", "tlbw", "sga"
 )
 dependent_vars
 
@@ -178,7 +180,8 @@ results_list_cox <- future.apply::future_lapply(seq_len(nrow(combinations)), fun
     model_type = model_type,
     data = data_model,
     weight_var = "w_poststrat",
-    adjustment = adj
+    adjustment = adj,
+    time_start = "tstart"
   )
   res$exposure_scale <- exp_scale
   res

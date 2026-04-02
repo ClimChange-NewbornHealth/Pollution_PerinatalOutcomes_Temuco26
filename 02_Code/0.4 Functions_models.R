@@ -181,9 +181,12 @@ fit_logit_model <- function(dependent, predictor, tiempo, contaminante, tipo,
 
 # Cox proportional hazards models function (semiparametric approach) -----
 
-fit_cox_model <- function(dependent, predictor, tiempo, contaminante, tipo,
-                         model_type, data, time_var = "edad_gest",
-                         conf.level = 0.95, adjustment = "Adjusted") {
+# time_start: nombre de columna con inicio de riesgo (entrada retardada); NULL = Surv(t_stop, evento)
+fit_cox_model <- function(
+    dependent, predictor, tiempo, contaminante, tipo,
+    model_type, data, time_var = "edad_gest",
+    time_start = NULL,
+    conf.level = 0.95, adjustment = "Adjusted") {
 
   # Extract individual predictors list
   if (model_type == "single") {
@@ -220,6 +223,14 @@ fit_cox_model <- function(dependent, predictor, tiempo, contaminante, tipo,
   # Filter data with valid values in dependent, time variable, and all predictors
   data_subset <- data |>
     dplyr::filter(!is.na(.data[[dependent]]), !is.na(.data[[time_var]]))
+
+  use_delayed <- !is.null(time_start) &&
+    is.character(time_start) && nzchar(time_start) && time_start %in% names(data)
+  if (use_delayed) {
+    data_subset <- data_subset |>
+      dplyr::filter(!is.na(.data[[time_start]])) |>
+      dplyr::filter(.data[[time_start]] < .data[[time_var]])
+  }
 
   for (pred in predictors_list) {
     data_subset <- data_subset |>
@@ -266,8 +277,12 @@ fit_cox_model <- function(dependent, predictor, tiempo, contaminante, tipo,
     rhs <- paste(predictors_list, collapse = " + ")
   }
 
-  # Build formula: Surv(time_var, event) ~ predictors
-  fml <- as.formula(paste0("Surv(", time_var, ", ", dependent, ") ~ ", rhs))
+  surv_lhs <- if (use_delayed) {
+    paste0("Surv(", time_start, ", ", time_var, ", ", dependent, ")")
+  } else {
+    paste0("Surv(", time_var, ", ", dependent, ")")
+  }
+  fml <- stats::as.formula(paste0(surv_lhs, " ~ ", rhs))
 
   # Fit Cox model
   model_fit <- tryCatch({
@@ -538,6 +553,7 @@ fit_cox_model_weighted <- function(
     dependent, predictor, tiempo, contaminante, tipo,
     model_type, data,
     time_var = "edad_gest",
+    time_start = NULL,
     weight_var = "w_poststrat",
     conf.level = 0.95,
     adjustment = "Adjusted") {
@@ -575,6 +591,14 @@ fit_cox_model_weighted <- function(
   data_subset <- data |>
     dplyr::filter(!is.na(.data[[dependent]]), !is.na(.data[[time_var]])) |>
     dplyr::filter(!is.na(.data[[weight_var]]), .data[[weight_var]] > 0)
+
+  use_delayed <- !is.null(time_start) &&
+    is.character(time_start) && nzchar(time_start) && time_start %in% names(data_subset)
+  if (use_delayed) {
+    data_subset <- data_subset |>
+      dplyr::filter(!is.na(.data[[time_start]])) |>
+      dplyr::filter(.data[[time_start]] < .data[[time_var]])
+  }
 
   for (pred in predictors_list) {
     data_subset <- data_subset |>
@@ -619,7 +643,12 @@ fit_cox_model_weighted <- function(
     rhs <- paste(predictors_list, collapse = " + ")
   }
 
-  fml <- stats::as.formula(paste0("Surv(", time_var, ", ", dependent, ") ~ ", rhs))
+  surv_lhs <- if (use_delayed) {
+    paste0("Surv(", time_start, ", ", time_var, ", ", dependent, ")")
+  } else {
+    paste0("Surv(", time_var, ", ", dependent, ")")
+  }
+  fml <- stats::as.formula(paste0(surv_lhs, " ~ ", rhs))
   wform <- stats::as.formula(paste0("~", weight_var))
   des <- survey::svydesign(ids = ~1, weights = wform, data = data_subset)
 

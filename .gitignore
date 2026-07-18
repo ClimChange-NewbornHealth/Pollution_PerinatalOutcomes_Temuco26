@@ -58,11 +58,13 @@ rsconnect/
 01_Input/data_1992_2020.RData
 
 # Models results
+02_Code/Map.R
 03_Output/Models/Plots_compiled_figures.RData
 03_Output/DLM/Plots_compiled_figures.RData
-04_Docs/Blanco_Air pollution and Birth Outcomes_07.2024.docx
-04_Docs/Resultads_AirPollution_PO_03032026.docx
+04_Docs/*
 
-02_Code/Map.R
 
 05_Refs/
+
+
+

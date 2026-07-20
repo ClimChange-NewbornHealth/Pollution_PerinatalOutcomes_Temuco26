@@ -102,8 +102,7 @@ We conducted a population-based retrospective cohort study using:
 
 - `0.1 Settings.R` - Global settings and options
 - `0.2 Packages.R` - Package installation and loading
-- `0.3 Functions.R` - Custom functions
-- `0.4 Functions_models.R` - Model fitting functions (logistic and Cox)
+- `0.3 Functions_models.R` - Model fitting functions (logistic and Cox)
 
 ### Data Processing
 
@@ -121,7 +120,7 @@ We conducted a population-based retrospective cohort study using:
 
 ### Distributed Lag Models (DLM) (`02_Code/4.x`)
 
-- `4.0 DLM_PO_estimation.R` - DLM estimation: logit and Cox models per gestational week (1–37) with exposure + lagged exposure. Estimates both **raw** and **IQR-scaled** exposure versions. Uses `fit_logit_model` and `fit_cox_model` from `0.4 Functions_models.R`. Saves results to `03_Output/DLM/DLM_PO_results.RData`
+- `4.0 DLM_PO_estimation.R` - DLM estimation: logit and Cox models per gestational week (1–37) with exposure + lagged exposure. Estimates both **raw** and **IQR-scaled** exposure versions. Uses `fit_logit_model` and `fit_cox_model` from `0.3 Functions_models.R`. Saves results to `03_Output/DLM/DLM_PO_results.RData`
 - `4.1 DLM_PO_tables_plots.R` - DLM tables (Excel, one sheet per outcome–exposure) and figures (panels by contaminant–type). Generates **raw** and **IQR** versions
 
 ---
@@ -201,8 +200,7 @@ The analysis pipeline follows this sequence:
    ```r
    source("02_Code/0.1 Settings.R")
    source("02_Code/0.2 Packages.R")
-   source("02_Code/0.3 Functions.R")
-   source("02_Code/0.4 Functions_models.R")
+   source("02_Code/0.3 Functions_models.R")
    ```
 2. **Data Processing** (creates analysis dataset with IQR-scaled exposures):
 
@@ -313,8 +311,7 @@ Pollution_PerinatalOutcomes_Temuco26/
 ├── 02_Code/                               # Analysis scripts
 │   ├── 0.1 Settings.R
 │   ├── 0.2 Packages.R
-│   ├── 0.3 Functions.R
-│   ├── 0.4 Functions_models.R
+│   ├── 0.3 Functions_models.R
 │   ├── 1.0 Process_data.R                 # Data merge, IQR scaling
 │   ├── 2.0 Descriptive.R                  # Descriptive statistics
 │   ├── 3.0 Exposure_PO_Models.R           # Exposure models (raw + IQR)

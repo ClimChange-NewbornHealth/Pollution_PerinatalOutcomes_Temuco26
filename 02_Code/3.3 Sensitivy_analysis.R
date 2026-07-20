@@ -3,8 +3,7 @@
 ## Settings ----
 source("02_Code/0.1 Settings.R")
 source("02_Code/0.2 Packages.R")
-source("02_Code/0.3 Functions.R")
-source("02_Code/0.4 Functions_models.R")
+source("02_Code/0.3 Functions_models.R")
 
 control_vars <- c("edad_madre", "education", "health_insurance", "job", "first_birth", "sexo_rn", "a_nac", "mes_nac", "comuna")
 

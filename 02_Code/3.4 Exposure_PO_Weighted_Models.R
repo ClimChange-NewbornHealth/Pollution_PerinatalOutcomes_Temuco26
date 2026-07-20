@@ -11,8 +11,7 @@
 ## 1 Settings y paquetes ----
 source("02_Code/0.1 Settings.R")
 source("02_Code/0.2 Packages.R")
-source("02_Code/0.3 Functions.R")
-source("02_Code/0.4 Functions_models.R")
+source("02_Code/0.3 Functions_models.R")
 
 # Opciones survey (diseño sin conglomerados explícitos)
 options(survey.lonely.psu = "adjust")

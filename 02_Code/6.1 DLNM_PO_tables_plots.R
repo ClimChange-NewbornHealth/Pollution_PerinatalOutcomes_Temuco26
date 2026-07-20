@@ -180,7 +180,7 @@ compute_dlm_ptb_fit_stats <- function() {
     return(dlm_fit)
   }
 
-  source("02_Code/0.4 Functions_models.R", local = TRUE)
+  source("02_Code/0.3 Functions_models.R", local = TRUE)
   control_vars <<- c(
     "edad_madre", "education", "health_insurance", "job", "first_birth",
     "sexo_rn", "a_nac", "mes_nac", "comuna"

@@ -1,14 +1,13 @@
 # 5.0 DLM Perinatal Outcomes - Model Estimation ----
 # Distributed Lag Models (DLM) for perinatal outcomes.
 # Estimates logit and Cox models per gestational week (1-39) using exposure + lagged exposure.
-# Uses fit_logit_model and fit_cox_model from 0.4 Functions_models.R (Adjusted only).
+# Uses fit_logit_model and fit_cox_model from 0.3 Functions_models.R (Adjusted only).
 # Saves results to RData for use in 5.1 DLM_PO_tables_plots.R
 
 ## Settings ----
 source("02_Code/0.1 Settings.R")
 source("02_Code/0.2 Packages.R")
-source("02_Code/0.3 Functions.R")
-source("02_Code/0.4 Functions_models.R")
+source("02_Code/0.3 Functions_models.R")
 
 ## 1 Load data ----
 

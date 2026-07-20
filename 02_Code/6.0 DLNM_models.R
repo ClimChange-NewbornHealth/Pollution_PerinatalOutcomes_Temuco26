@@ -7,8 +7,7 @@
 ## Settings ----
 source("02_Code/0.1 Settings.R")
 source("02_Code/0.2 Packages.R")
-source("02_Code/0.3 Functions.R")
-source("02_Code/0.4 Functions_models.R")
+source("02_Code/0.3 Functions_models.R")
 
 if (!requireNamespace("dlnm", quietly = TRUE)) {
   install.packages("dlnm", repos = "https://cloud.r-project.org")

@@ -58,10 +58,9 @@ rsconnect/
 01_Input/data_1992_2020.RData
 
 # Models results
-02_Code/Map.R
 03_Output/Models/Plots_compiled_figures.RData
 03_Output/DLM/Plots_compiled_figures.RData
-04_Docs/*
+04_Docs/
 
 
 05_Refs/

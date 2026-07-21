@@ -185,7 +185,7 @@ results_list_cox <- future.apply::future_lapply(seq_len(nrow(combinations)), fun
   res$exposure_scale <- exp_scale
   res
 }, future.seed = TRUE)
-toc()
+toc() # 104,115 sec elapsed
 
 plan(sequential)
 

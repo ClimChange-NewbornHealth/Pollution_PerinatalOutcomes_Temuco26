@@ -2,7 +2,8 @@
 # Distributed Lag Non-linear Models (DLNM) with cohort cross-basis.
 # Cox proportional hazards (aligned with 4.0 DLM_PO_estimation.R).
 # Outcome: birth_preterm (PTB) only; 3 pollutants x cs/sp x raw/iqr.
-# Four cross-basis specifications; gestational weeks 0-39; output weeks 1-37.
+# Four cross-basis specifications; gestational weeks 0-43; output weeks 1-43.
+# Sample aligned with 4.0 (birth_preterm + lbw/tlbw/sga non-missing). Post-delivery NA -> 0 in Q.
 
 ## Settings ----
 source("02_Code/0.1 Settings.R")
@@ -21,12 +22,13 @@ data <- rio::import("01_Input/Data_full_sample_exposure_analysis.RData")
 data <- data |>
   dplyr::mutate(mes_nac = lubridate::month(fecha_nac)) |>
   dplyr::select(
-    "idbase", "edad_gest", "birth_preterm",
+    "idbase", "edad_gest", "birth_preterm", "lbw", "tlbw", "sga",
     "edad_madre", "education", "health_insurance", "job", "first_birth", "para", "cesarea",
     "sexo_rn", "a_nac", "estacion", "comuna", "mes_nac",
     dplyr::matches("^w[0-9]+_"),
     dplyr::matches("^iqr_w[0-9]+_")
   ) |>
+  dplyr::filter(!is.na(lbw | tlbw | sga)) |>
   dplyr::filter(!is.na(birth_preterm)) |>
   dplyr::filter(edad_gest >= 28) |>
   dplyr::mutate(tstart = 27)
@@ -49,8 +51,8 @@ contaminants <- c("PM25", "Levo", "K")
 types <- c("cs", "sp")
 exposure_scales <- c("raw", "iqr")
 
-gest_weeks <- 0:39
-out_weeks <- 1:37
+gest_weeks <- 0:43
+out_weeks <- 1:43
 
 out_dir <- "03_Output/DLNM"
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
@@ -59,9 +61,9 @@ lag_knots_trim <- list(fun = "ns", knots = c(13, 27))
 
 crossbasis_specs <- list(
   lin_simple = list(
-    label = "Linear exposure + NS lag (df=4)",
+    label = "Linear exposure + NS lag (df=3)",
     argvar = list(fun = "lin"),
-    arglag = list(fun = "ns", df = 4)
+    arglag = list(fun = "ns", df = 3)
   ),
   lin_knots1327 = list(
     label = "Linear exposure + NS lag (knots 13, 27)",
@@ -93,6 +95,7 @@ build_exposure_matrix <- function(data, contaminante, tipo, scale) {
     stop("Faltan columnas de exposición: ", missing_cols[1])
   }
   Q <- as.matrix(data[, cols, drop = FALSE])
+  # NA = weeks after delivery; treat as zero exposure in the cross-basis history
   Q[is.na(Q)] <- 0
   Q
 }
@@ -150,16 +153,19 @@ fit_dlnm_cox <- function(data, contaminante, tipo, scale, spec_id, spec) {
 
   lag_cols <- colnames(pred$matRRfit)
   lag_vals <- as.integer(sub("^lag", "", lag_cols))
+  z975 <- stats::qnorm(0.975)
+  log_fit <- as.numeric(pred$matfit[1, ])
+  log_se <- as.numeric(pred$matse[1, ])
   rr <- as.numeric(pred$matRRfit[1, ])
   rr_l <- as.numeric(pred$matRRlow[1, ])
   rr_h <- as.numeric(pred$matRRhigh[1, ])
 
   res <- data.frame(
     Week = lag_vals,
-    beta = log(rr),
-    se = (log(rr_h) - log(rr_l)) / (2 * stats::qnorm(0.975)),
-    Lower = log(rr_l),
-    Upper = log(rr_h),
+    beta = log_fit,
+    se = log_se,
+    Lower = log_fit - z975 * log_se,
+    Upper = log_fit + z975 * log_se,
     beta_exp = rr,
     Lower_exp = rr_l,
     Upper_exp = rr_h,

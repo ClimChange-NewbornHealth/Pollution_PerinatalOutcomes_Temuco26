@@ -205,7 +205,10 @@ plot_dlm_single <- function(data_one, y_var, ymin_var, ymax_var, ref_line, y_lab
       n.breaks = 6,
       labels = scales::label_number(decimal.mark = ".")
     ) +
-    scale_x_continuous(breaks = seq(1, 39, by = 3)) +
+    scale_x_continuous(
+      breaks = seq(1, 37, by = 3),
+      limits = c(0.5, 37.5)
+    ) +
     labs(y = y_label, x = "Gestational week", title = panel_label) +
     theme_light(base_size = 10) +
     theme(

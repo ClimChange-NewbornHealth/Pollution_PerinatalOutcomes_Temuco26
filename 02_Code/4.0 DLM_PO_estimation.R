@@ -1,6 +1,8 @@
 # 5.0 DLM Perinatal Outcomes - Model Estimation ----
 # Distributed Lag Models (DLM) for perinatal outcomes.
-# Estimates logit and Cox models per gestational week (1-39) using exposure + lagged exposure.
+# Estimates logit and Cox models per gestational week (1-43) using exposure + lagged exposure.
+# Sample: non-missing birth_preterm and lbw/tlbw/sga (outcomes retained for all dependent_vars).
+# Post-delivery exposure NA: rows excluded per week via complete-case on exposicion_w (no NA->0).
 # Uses fit_logit_model and fit_cox_model from 0.3 Functions_models.R (Adjusted only).
 # Saves results to RData for use in 5.1 DLM_PO_tables_plots.R
 
@@ -26,6 +28,7 @@ data <- data |>
         ) |>
   select(-"birth_extremely_preterm", -"birth_term", -"birth_posterm") |>
   filter(!is.na(lbw | tlbw | sga)) |>
+  filter(!is.na(birth_preterm)) |>
   filter(edad_gest >= 28) |>
   mutate(tstart = 27)
 
@@ -48,7 +51,7 @@ data_long <- data |>
     values_to = "exposicion"
   ) |>
   mutate(
-    week = as.numeric(stringr::str_extract(col, "[0-9]+")),
+    week = as.numeric(stringr::str_extract(col, "[0-9]+"))+1,
     contaminante = stringr::str_extract(col, "(PM25|Levo|K)"),
     tipo = stringr::str_extract(col, "(cs|sp)$")
   ) |>
@@ -63,7 +66,7 @@ data_long_iqr <- data |>
     values_to = "exposicion"
   ) |>
   mutate(
-    week = as.numeric(stringr::str_extract(col, "[0-9]+")),
+    week = as.numeric(stringr::str_extract(col, "[0-9]+"))+1,
     contaminante = stringr::str_extract(col, "(PM25|Levo|K)"),
     tipo = stringr::str_extract(col, "(cs|sp)$")
   ) |>
@@ -81,11 +84,9 @@ compute_lagged_exposure <- function(df) {
     dplyr::mutate(
       # Para cada fila i, calculamos la exposición acumulada ponderada de semanas anteriores
       exposicion_lagged = purrr::map_dbl(dplyr::row_number(), function(i) {
-        # Si estamos en semana 0, no hay semanas previas: retornamos NA
-        if (week[i] == 0) return(NA_real_)
-        # Índices de las filas correspondientes a semanas anteriores a la actual
+        # Semana 1: sin historial previo en el DLM (modelo w=1 usa solo exposicion_1)
+        if (week[i] == 1) return(NA_real_)
         past_rows <- which(week < week[i])
-        # Si no hay semanas previas, retornamos NA
         if (length(past_rows) == 0) return(NA_real_)
         # Pesos: inversamente proporcionales a la distancia temporal (semanas más recientes pesan más)
         # weight = 1 / (semana_actual - semana_pasada)
@@ -132,8 +133,8 @@ contaminants <- c("PM25", "Levo", "K")
 types <- c("cs", "sp")
 exposure_scales <- c("raw", "iqr")  # raw = sin IQR, iqr = con IQR
 
-# Analysis weeks: 1 to 39 only (exclude week 0)
-weeks_analysis <- 1:37
+# Analysis weeks: 1 to 43 (exclude week 0)
+weeks_analysis <- 1:43
 
 ## 7 Fit DLM models per contaminant, type, outcome, exposure scale ----
 
@@ -169,11 +170,9 @@ for (scale in exposure_scales) {
       # Keep only weeks that exist in data
       expo_avail <- expo_cols[expo_cols %in% names(data_model)]
       lag_avail <- lag_cols[lag_cols %in% names(data_model)]
-      common <- intersect(
-        as.numeric(stringr::str_remove(expo_avail, "exposicion_")),
-        as.numeric(stringr::str_remove(lag_avail, "exposicion_lagged_"))
-      )
-      common <- sort(common[common >= 1 & common <= 39])
+      common_expo <- as.numeric(stringr::str_remove(expo_avail, "exposicion_"))
+      common_lag <- as.numeric(stringr::str_remove(lag_avail, "exposicion_lagged_"))
+      common <- sort(unique(common_expo[common_expo >= 1 & common_expo <= 43]))
 
       for (dep_var in dependent_vars) {
 
@@ -184,19 +183,27 @@ for (scale in exposure_scales) {
         for (w in common) {
           exp_var <- paste0("exposicion_", w)
           lag_var <- paste0("exposicion_lagged_", w)
-          if (!exp_var %in% names(data_model) || !lag_var %in% names(data_model)) next
+          if (!exp_var %in% names(data_model)) next
 
-          predictor <- paste(exp_var, lag_var, sep = " + ")
+          if (w == 1L) {
+            predictor <- exp_var
+            model_type <- "single"
+          } else {
+            if (!lag_var %in% names(data_model)) next
+            if (!w %in% common_lag) next
+            predictor <- paste(exp_var, lag_var, sep = " + ")
+            model_type <- "t1_t2_t3"
+          }
           tiempo <- paste0("w", w)
 
-          # Logit (model_type != "single" so predictor is split into terms; we keep only exposicion_w)
+          # Logit (keep only current-week exposure term)
           tbl_logit <- fit_logit_model(
             dependent = dep_var,
             predictor = predictor,
             tiempo = tiempo,
             contaminante = contam,
             tipo = tipo_val,
-            model_type = "t1_t2_t3",
+            model_type = model_type,
             data = data_model,
             adjustment = "Adjusted"
           )
@@ -215,7 +222,7 @@ for (scale in exposure_scales) {
             tiempo = tiempo,
             contaminante = contam,
             tipo = tipo_val,
-            model_type = "t1_t2_t3",
+            model_type = model_type,
             data = data_model,
             adjustment = "Adjusted",
             time_start = "tstart"

@@ -271,15 +271,25 @@ m2 <- survival::coxph(Surv(tstart, edad_gest, birth_preterm)  ~
   sexo_rn + a_nac + mes_nac + comuna, 
   data = data_model)
 
-m2 <- survival::coxph(Surv(tstart, edad_gest, birth_preterm)  ~ 
-  iqr_t1_PM25_cs + iqr_t2_PM25_cs + iqr_t3_PM25_cs +
-  edad_madre + education + health_insurance + job + first_birth +
-  sexo_rn + a_nac + mes_nac + comuna, 
-  data = data_model)
-
 summary(m2)
 exp(m2$coefficients[-1])
 exp(confint.default(m2)) 
 AIC(m2)
 BIC(m2)
 broom::tidy(m2, conf.int = TRUE, exponentiate = TRUE)
+
+m3 <- survival::coxph(Surv(tstart, edad_gest, birth_preterm)  ~ 
+  iqr_t1_Levo_cs + iqr_t2_Levo_cs + iqr_t3_Levo_cs +
+  edad_madre + education + health_insurance + job + first_birth +
+  sexo_rn + a_nac + mes_nac + comuna, 
+  data = data_model)
+
+summary(m3)
+
+m4 <- survival::coxph(Surv(tstart, edad_gest, birth_preterm)  ~ 
+  iqr_t1_K_cs + iqr_t2_K_cs + iqr_t3_K_cs +
+  edad_madre + education + health_insurance + job + first_birth +
+  sexo_rn + a_nac + mes_nac + comuna, 
+  data = data_model)
+
+summary(m4)

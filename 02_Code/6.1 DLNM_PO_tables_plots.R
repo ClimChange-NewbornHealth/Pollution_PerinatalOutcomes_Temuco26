@@ -24,6 +24,9 @@ exposure_scales <- dlnm_results$exposure_scales
 crossbasis_specs <- dlnm_results$crossbasis_specs
 out_weeks <- dlnm_results$out_weeks
 
+# Figures: display gestational weeks 1–37 (stored coefficients may include weeks > 37)
+plot_week_max <- 37L
+
 tipo_labels <- c("cs" = "FS", "sp" = "LUR")
 cont_labels <- c("PM25" = "PM2.5", "Levo" = "Levoglucosan", "K" = "K")
 plot_order <- c("PM25_cs", "Levo_cs", "K_cs", "PM25_sp", "Levo_sp", "K_sp")
@@ -61,7 +64,7 @@ safe_sheet_name <- function(x) {
 plot_dlnm_ptb_panel <- function(data_one, panel_label, y_label = "HR (95% CI)", ref_line = 1) {
   if (is.null(data_one) || nrow(data_one) == 0) return(NULL)
 
-  data_one <- data_one |> dplyr::filter(week <= 37)
+  data_one <- data_one |> dplyr::filter(week <= plot_week_max)
 
   y_vals <- c(data_one$estimate, data_one$conf.low, data_one$conf.high)
   y_vals <- y_vals[is.finite(y_vals)]
@@ -85,7 +88,10 @@ plot_dlnm_ptb_panel <- function(data_one, panel_label, y_label = "HR (95% CI)", 
       n.breaks = 6,
       labels = scales::label_number(decimal.mark = ".")
     ) +
-    ggplot2::scale_x_continuous(breaks = seq(1, 39, by = 3)) +
+    ggplot2::scale_x_continuous(
+      breaks = seq(1, plot_week_max, by = 3),
+      limits = c(0.5, plot_week_max + 0.5)
+    ) +
     ggplot2::labs(y = y_label, x = "Gestational week", title = panel_label) +
     ggplot2::theme_light(base_size = 10) +
     ggplot2::theme(
@@ -190,12 +196,13 @@ compute_dlm_ptb_fit_stats <- function() {
   data <- data |>
     dplyr::mutate(mes_nac = lubridate::month(fecha_nac)) |>
     dplyr::select(
-      "idbase", "edad_gest", "birth_preterm",
+      "idbase", "edad_gest", "birth_preterm", "lbw", "tlbw", "sga",
       "edad_madre", "education", "health_insurance", "job", "first_birth",
       "sexo_rn", "a_nac", "comuna", "mes_nac",
       dplyr::matches("^w[0-9]+_"),
       dplyr::matches("^iqr_w[0-9]+_")
     ) |>
+    dplyr::filter(!is.na(lbw | tlbw | sga)) |>
     dplyr::filter(!is.na(birth_preterm), edad_gest >= 28) |>
     dplyr::mutate(tstart = 27)
 
@@ -248,7 +255,7 @@ compute_dlm_ptb_fit_stats <- function() {
     "^iqr_w[0-9]+_(PM25|Levo|K)_(cs|sp)$"
   )
 
-  weeks_analysis <- 1:37
+  weeks_analysis <- 1:43
   base_cols <- c("idbase", "edad_gest", "tstart", "birth_preterm", control_vars)
   rows <- list()
 

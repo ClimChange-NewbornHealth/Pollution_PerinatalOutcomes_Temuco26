@@ -1,5 +1,5 @@
 # 6.1 DLNM PTB - Tables, Figures and Model Fit ----
-# Loads DLNM Cox results from 6.0 (birth_preterm only).
+# Loads DLNM Cox results from 6.0 (birth_preterm only; IQR exposure scale).
 # Figures: 3 cols (PM2.5, Levoglucosan, K) x 2 rows (FS, LUR) per DLNM spec.
 # Aesthetic aligned with Fig2_DLM_preterm in 5.0 Figures_model_paper.R.
 
@@ -16,16 +16,36 @@ if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE)
 load(file.path(out_dir, "DLNM_PTB_results.RData"))
 
 all_results <- dlnm_results$all_results
+crossbasis_specs <- dlnm_results$crossbasis_specs
+primary_spec_id <- if ("primary_spec_id" %in% names(dlnm_results)) {
+  dlnm_results$primary_spec_id
+} else {
+  "lin_trimester"
+}
 fit_df <- dlnm_results$fit_df
+if (nrow(fit_df) > 0 && !"spec_role" %in% names(fit_df)) {
+  role_lookup <- vapply(crossbasis_specs, function(x) x$role, character(1))
+  fit_df <- fit_df |>
+    dplyr::mutate(
+      spec_role = unname(role_lookup[.data$spec_id]),
+      is_primary = .data$spec_id == primary_spec_id,
+      n_params = NA_integer_,
+      logLik = NA_real_,
+      converged = NA,
+      warnings = NA_character_
+    )
+}
 dependent_var <- dlnm_results$dependent_var
 contaminants <- dlnm_results$contaminants
 types <- dlnm_results$types
 exposure_scales <- dlnm_results$exposure_scales
-crossbasis_specs <- dlnm_results$crossbasis_specs
 out_weeks <- dlnm_results$out_weeks
+out_weeks <- out_weeks[out_weeks != 37L & out_weeks <= 36L]
 
-# Figures: display gestational weeks 1–37 (stored coefficients may include weeks > 37)
-plot_week_max <- 37L
+spec_id_order <- c(names(crossbasis_specs), "dlm_4.0")
+
+# Figures: gestational weeks 1–36 (week 37 omitted from plots).
+plot_week_max <- 36L
 
 tipo_labels <- c("cs" = "FS", "sp" = "LUR")
 cont_labels <- c("PM25" = "PM2.5", "Levo" = "Levoglucosan", "K" = "K")
@@ -64,7 +84,8 @@ safe_sheet_name <- function(x) {
 plot_dlnm_ptb_panel <- function(data_one, panel_label, y_label = "HR (95% CI)", ref_line = 1) {
   if (is.null(data_one) || nrow(data_one) == 0) return(NULL)
 
-  data_one <- data_one |> dplyr::filter(week <= plot_week_max)
+  data_one <- data_one |>
+    dplyr::filter(.data$week <= plot_week_max, .data$week != 37L)
 
   y_vals <- c(data_one$estimate, data_one$conf.low, data_one$conf.high)
   y_vals <- y_vals[is.finite(y_vals)]
@@ -72,17 +93,19 @@ plot_dlnm_ptb_panel <- function(data_one, panel_label, y_label = "HR (95% CI)", 
 
   y_min <- min(y_vals)
   y_max <- max(y_vals)
-  min_range <- if (ref_line == 0) 0.05 else 0.1
-  max_dist <- max(ref_line - y_min, y_max - ref_line, min_range)
-  y_limits <- c(ref_line - max_dist, ref_line + max_dist)
+  y_span <- y_max - y_min
+  pad <- if (y_span > 0) 0.1 * y_span else if (ref_line == 0) 0.05 else 0.08
+  y_limits <- c(y_min - pad, y_max + pad)
 
   ggplot2::ggplot(data_one, ggplot2::aes(x = week, y = estimate)) +
     ggplot2::geom_hline(yintercept = ref_line, linetype = "dashed", color = "grey50") +
     ggplot2::geom_errorbar(
       ggplot2::aes(ymin = conf.low, ymax = conf.high),
-      width = 0.3, color = "black"
+      width = 0.3,
+      color = "black",
+      linewidth = 0.35
     ) +
-    ggplot2::geom_point(size = 2, color = "black") +
+    ggplot2::geom_point(size = 1.25, color = "black") +
     ggplot2::scale_y_continuous(
       limits = y_limits,
       n.breaks = 6,
@@ -182,12 +205,13 @@ build_summary_table <- function(spec_id, tp, scale) {
 compute_dlm_ptb_fit_stats <- function() {
   cache_path <- file.path(out_dir, "DLM_PTB_fit_reference.RData")
   if (file.exists(cache_path)) {
-    dlm_fit <- get("dlm_fit", envir = load(cache_path))
-    return(dlm_fit)
+    cache_env <- new.env()
+    load(cache_path, envir = cache_env)
+    return(cache_env$dlm_fit)
   }
 
   source("02_Code/0.3 Functions_models.R", local = TRUE)
-  control_vars <<- c(
+  control_vars_dlm <- c(
     "edad_madre", "education", "health_insurance", "job", "first_birth",
     "sexo_rn", "a_nac", "mes_nac", "comuna"
   )
@@ -256,7 +280,7 @@ compute_dlm_ptb_fit_stats <- function() {
   )
 
   weeks_analysis <- 1:43
-  base_cols <- c("idbase", "edad_gest", "tstart", "birth_preterm", control_vars)
+  base_cols <- c("idbase", "edad_gest", "tstart", "birth_preterm", control_vars_dlm)
   rows <- list()
 
   for (scale in exposure_scales) {
@@ -283,7 +307,7 @@ compute_dlm_ptb_fit_stats <- function() {
           if (!exp_var %in% names(data_model) || !lag_var %in% names(data_model)) next
 
           predictor <- paste(exp_var, lag_var, sep = " + ")
-          available_controls <- control_vars[control_vars %in% names(data_model)]
+          available_controls <- control_vars_dlm[control_vars_dlm %in% names(data_model)]
           fml <- stats::as.formula(
             paste0(
               "survival::Surv(tstart, edad_gest, birth_preterm) ~ ",
@@ -341,55 +365,68 @@ extract_dlm_reference_fit <- function() {
   )
 }
 
-build_paper_fit_table <- function(fit_df_all) {
+build_paper_fit_table <- function(fit_df_all, crossbasis_specs, exposure_scale_filter = NULL) {
   pollutant_labels <- c(PM25 = "PM2.5", Levo = "Levoglucosan", K = "Potassium")
   exposure_type_labels <- c(cs = "Fixed site (cs)", sp = "Land-use regression (sp)")
-  scale_labels <- c(raw = "Raw", iqr = "IQR-scaled")
-  model_family_labels <- c(
-    lin_simple = "DLNM (cohort cross-basis)",
-    lin_knots1327 = "DLNM (cohort cross-basis)",
-    bs2_knots1327 = "DLNM (cohort cross-basis)",
-    bs3_knots1327 = "DLNM (cohort cross-basis)",
-    dlm_4.0 = "DLM weekly Cox (primary analysis)"
-  )
-  spec_order <- c(
-    "lin_simple", "lin_knots1327", "bs2_knots1327", "bs3_knots1327", "dlm_4.0"
-  )
+  spec_roles <- vapply(crossbasis_specs, function(x) x$role, character(1))
 
-  fit_df_all |>
+  df <- fit_df_all
+  if (!is.null(exposure_scale_filter)) {
+    df <- df |> dplyr::filter(.data$exposure_scale == exposure_scale_filter)
+  }
+
+  df |>
     dplyr::mutate(
-      Outcome = "Preterm birth (<37 weeks)",
-      Model = unname(model_family_labels[.data$spec_id]),
+      Pollutant = unname(pollutant_labels[.data$contaminante]),
+      `Exposure model` = unname(exposure_type_labels[.data$tipo]),
+      primary_flag = dplyr::coalesce(.data$is_primary, .data$spec_id == primary_spec_id),
       `Model specifications` = dplyr::if_else(
         .data$spec_id == "dlm_4.0",
         paste0(
-          .data$spec_label,
-          " (AIC and BIC averaged over ",
+          "WDLM: current week + inverse-distance lag weighted",
+          " (AIC/BIC mean over ",
           .data$n_weekly_models,
-          " gestational-week models)."
+          " weekly models)."
         ),
-        .data$spec_label
+        dplyr::if_else(
+          .data$primary_flag,
+          paste0(.data$spec_label, " [primary]"),
+          .data$spec_label
+        )
       ),
-      Pollutant = unname(pollutant_labels[.data$contaminante]),
-      `Exposure model` = unname(exposure_type_labels[.data$tipo]),
-      `Exposure scale` = unname(scale_labels[.data$exposure_scale]),
+      Role = dplyr::recode(
+        .data$spec_id,
+        !!!stats::setNames(spec_roles, names(spec_roles)),
+        .default = "reference_dlm"
+      ),
       AIC = sprintf("%.3f", .data$AIC),
       BIC = sprintf("%.3f", .data$BIC),
-      spec_ord = match(.data$spec_id, spec_order),
+      spec_ord = match(.data$spec_id, spec_id_order),
       poll_ord = match(.data$contaminante, names(pollutant_labels)),
-      tipo_ord = match(.data$tipo, names(exposure_type_labels)),
-      scale_ord = match(.data$exposure_scale, names(scale_labels))
+      tipo_ord = match(.data$tipo, names(exposure_type_labels))
     ) |>
-    dplyr::arrange(.data$scale_ord, .data$tipo_ord, .data$poll_ord, .data$spec_ord) |>
+    dplyr::arrange(.data$poll_ord, .data$tipo_ord, .data$spec_ord) |>
     dplyr::select(
-      Outcome,
-      Model,
-      `Model specifications`,
       Pollutant,
       `Exposure model`,
-      `Exposure scale`,
+      `Model specifications`,
+      Role,
       AIC,
       BIC
+    )
+}
+
+build_extended_fit_table <- function(fit_df_all) {
+  fit_df_all |>
+    dplyr::mutate(
+      spec_ord = match(.data$spec_id, spec_id_order)
+    ) |>
+    dplyr::arrange(.data$exposure_scale, .data$contaminante, .data$tipo, .data$spec_ord) |>
+    dplyr::select(
+      spec_id, spec_label, spec_role, is_primary,
+      contaminante, tipo, exposure_scale,
+      n, n_params, logLik, AIC, BIC, converged, warnings,
+      dplyr::any_of(c("n_weekly_models", "cen", "at"))
     )
 }
 
@@ -464,15 +501,37 @@ for (spec_id in names(crossbasis_specs)) {
 fit_dlm_ref <- extract_dlm_reference_fit()
 fit_df_all <- dplyr::bind_rows(
   fit_df |> dplyr::mutate(n_weekly_models = NA_integer_),
-  fit_dlm_ref
+  fit_dlm_ref |>
+    dplyr::mutate(
+      spec_role = NA_character_,
+      is_primary = FALSE,
+      n_params = NA_integer_,
+      logLik = NA_real_,
+      converged = NA,
+      warnings = NA_character_
+    )
 )
 
-paper_fit <- build_paper_fit_table(fit_df_all)
+paper_fit <- build_paper_fit_table(fit_df_all, crossbasis_specs, "iqr")
+fit_extended <- build_extended_fit_table(fit_df_all)
+
+cb_dimension_table <- if ("cb_dimension_table" %in% names(dlnm_results)) {
+  dlnm_results$cb_dimension_table
+} else {
+  NULL
+}
+
+fit_xlsx_list <- list(
+  Model_fit = fit_df_all,
+  Model_fit_extended = fit_extended,
+  Model_fit_paper = paper_fit
+)
+if (!is.null(cb_dimension_table)) {
+  fit_xlsx_list$Cross_basis_dimensions <- cb_dimension_table
+}
+
 writexl::write_xlsx(
-  list(
-    Model_fit = fit_df_all,
-    Model_fit_paper = paper_fit
-  ),
+  fit_xlsx_list,
   path = file.path(out_dir, "DLNM_PTB_model_fit_AIC_BIC.xlsx")
 )
 message("Saved: DLNM_PTB_model_fit_AIC_BIC.xlsx")
